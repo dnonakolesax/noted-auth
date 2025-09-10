@@ -1,0 +1,23 @@
+app:
+  auth-timeout: 5 # Время, дающееся пользователю на аутентификацию (в минутах)
+  base-path: "/openid-connect" # Базовый путь для всех запросов (https://<url>/api/v<version>/<base-path>/...)
+  port: 8800
+  allowed-redirect: "https://dnk33.com/"
+
+postgres:
+  address: 192.168.16.4
+  port: 5432
+  database: keycloak
+  user: kc_user_selector
+
+redis:
+  address: 192.168.16.3
+  port: 6379
+
+realm:
+  base-url: http://localhost:8080/auth # URL реалма keycloak
+  client-id: admin-cli # ID клиента в keycloak
+  client-sercret: zizipabeda # Secret клиента в keycloak
+  redirect-url: http://localhost:8080/callback # URL для редиректа после авторизации
+  te-timeout: 10 # Таймаут ожидания ответа от POST-запроса на /token (секунды)
+  state-length: 32 # Длина параметра state (байты)

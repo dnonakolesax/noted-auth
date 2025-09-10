@@ -1,0 +1,34 @@
+package routing
+
+import (
+	"github.com/fasthttp/router"
+	"github.com/valyala/fasthttp"
+)
+
+type HTTPHandler interface {
+	RegisterRoutes(apiGroup *router.Group)
+}
+
+type Router struct {
+	rtr *router.Router
+}
+
+func NewRouter() *Router {
+	rtr := router.New()
+
+	return &Router{
+		rtr: rtr,
+	}
+}
+
+func (rr *Router) NewApiGroup(basePath string, version string, handlers ...HTTPHandler) {
+	apiGroup := rr.rtr.Group("/api/v" + version + basePath)
+
+	for _, handler := range handlers {
+		handler.RegisterRoutes(apiGroup)
+	}
+}
+
+func (rr *Router) Handler() func(ctx *fasthttp.RequestCtx) {
+	return rr.rtr.Handler
+}

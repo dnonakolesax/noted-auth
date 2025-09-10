@@ -1,0 +1,6 @@
+@startumll noted-auth
+
+User -> Handler: REST req
+Handler -> Service: Link req
+Service -> Handler: Link 
+Handler -> User: redirect for link
