@@ -2,7 +2,6 @@ package routing
 
 import (
 	"github.com/fasthttp/router"
-	"github.com/valyala/fasthttp"
 )
 
 type HTTPHandler interface {
@@ -29,6 +28,6 @@ func (rr *Router) NewApiGroup(basePath string, version string, handlers ...HTTPH
 	}
 }
 
-func (rr *Router) Handler() func(ctx *fasthttp.RequestCtx) {
-	return rr.rtr.Handler
+func (rr *Router) Router() *router.Router {
+	return rr.rtr
 }

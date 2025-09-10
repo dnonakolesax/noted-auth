@@ -7,10 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 	"net"
+	"net/http"
 
 
 	"github.com/spf13/viper"
 	"github.com/valyala/fasthttp"
+	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	dbredis "github.com/dnonakolesax/noted-auth/internal/db/redis"
@@ -28,6 +30,11 @@ import (
 	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
 	
 	"google.golang.org/grpc"
+
+	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -76,6 +83,54 @@ func main() {
 	/*                METRICS SETUP                 */
 	/************************************************/
 	
+	reg := prometheus.NewRegistry()
+
+	kcRequestDurations := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "keycloak_post_request_duration_ms",
+		Help:    "A histogram of the keycloak token POST request durations in ms.",
+		Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
+	})
+
+	kcRequestOks := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "keycloak_post_request_200s",
+		Help: "The total number of 200 keycloak token POST requests.",
+	})
+
+	kcRequest400s := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "keycloak_post_request_400s",
+		Help: "The total number of 400 keycloak token POST requests.",
+	})
+
+	kcRequest500s := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "keycloak_post_request_500s",
+		Help: "The total number of 500 keycloak token POST requests.",
+	})
+
+	reg.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		kcRequestDurations,
+		kcRequestOks,
+		kcRequest400s,
+		kcRequest500s,
+	)
+
+	tokenMetrics := usecase.TokenMetrics{
+		RequestDurations: kcRequestDurations,
+		RequestOks: kcRequestOks,
+		RequestBads: kcRequest400s,
+		RequestServErrs: kcRequest500s,
+	}
+
+	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+	
+	go func() {
+		err := http.ListenAndServe(":"+string(appConfig.MetricsPort), nil)
+		if err != nil {
+			slog.Error(fmt.Sprintf("Error starting metrics server: %v", err))
+			return 
+		}
+	}()
 	/************************************************/
 	/*                  REPOS INIT                  */
 	/************************************************/
@@ -92,7 +147,7 @@ func main() {
 	/*                USECASES INIT                 */
 	/************************************************/
 
-	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig)
+	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, tokenMetrics)
 	userUsecase := usecase.NewUserUsecase(userRepository)
 
 	/************************************************/
@@ -108,6 +163,8 @@ func main() {
 	/************************************************/
 
 	router := routing.NewRouter()
+	p := fasthttpprom.NewPrometheus("")
+	p.Use(router.Router())
 	router.NewApiGroup(appConfig.BasePath, "1", authHandler, userHandler)
 
 	/************************************************/
@@ -140,7 +197,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	srv := fasthttp.Server{
-		Handler: router.Handler(),
+		Handler: router.Router().Handler,
 	}
 
 	go func() {

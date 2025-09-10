@@ -2,6 +2,8 @@ app:
   auth-timeout: 5 # Время, дающееся пользователю на аутентификацию (в минутах)
   base-path: "/openid-connect" # Базовый путь для всех запросов (https://<url>/api/v<version>/<base-path>/...)
   port: 8800
+  grpc-port: 8801
+  metrics-port: 8802
   allowed-redirect: "https://dnk33.com/"
 
 postgres:

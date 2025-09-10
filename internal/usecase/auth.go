@@ -3,17 +3,18 @@ package usecase
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
-	"time"
 	"strings"
-	"encoding/json"
-	"io"
+	"time"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/dnonakolesax/noted-auth/internal/cryptos"
 	"github.com/dnonakolesax/noted-auth/internal/model"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type StateRepo interface {
@@ -21,15 +22,23 @@ type StateRepo interface {
 	GetState(state string) (string, error)
 }
 
+type TokenMetrics struct {
+	RequestDurations prometheus.Histogram
+	RequestOks       prometheus.Counter
+	RequestBads      prometheus.Counter
+	RequestServErrs  prometheus.Counter
+}
+
 type AuthUsecase struct {
 	authLifetime time.Duration
 	kcTimeout time.Duration
 	stateRepo StateRepo
 	kcConfig configs.KeycloakConfig
+	tokenMetrics TokenMetrics
 }
 
 func (ac *AuthUsecase) GetAuthLink(returnUrl string) (string, error) {
-	state, err := cryptos.GenRandomString(32)
+	state, err := cryptos.GenRandomString(ac.kcConfig.StateLength)
 
 	if err != nil {
 		return "", err
@@ -72,13 +81,27 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 
 	// Выполняем запрос
 	client := &http.Client{Timeout: ac.kcTimeout * time.Second}
+	start := time.Now().UnixMilli()
 	resp, err := client.Do(req)
+	defer resp.Body.Close()
+	end := time.Now().UnixMilli()
+	ac.tokenMetrics.RequestDurations.Observe(float64(end-start))
+
+	if resp.StatusCode <= http.StatusBadRequest {
+		ac.tokenMetrics.RequestOks.Inc()
+	} else if resp.StatusCode <= http.StatusInternalServerError {
+		ac.tokenMetrics.RequestBads.Inc()
+		return model.TokenDTO{}, fmt.Errorf("KC TOKEN POST: status 400x: %d", resp.StatusCode)
+	} else {
+		ac.tokenMetrics.RequestServErrs.Inc()
+		return model.TokenDTO{}, fmt.Errorf("KC TOKEN POST: status 500x: %d", resp.StatusCode)
+	}
+
 	if err != nil {
 		return model.TokenDTO{}, err
 	}
-	defer resp.Body.Close()
-
 	body, err := io.ReadAll(resp.Body)
+
 	if err != nil {
 		return model.TokenDTO{}, err
 	}
@@ -92,10 +115,11 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 	return dto, nil
 }
 
-func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig) *AuthUsecase {
+func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig, tokenMetrics TokenMetrics) *AuthUsecase {
 	return &AuthUsecase{
 		authLifetime: authLifetime,
 		stateRepo: stateRepo,
 		kcConfig: kcConfig,
+		tokenMetrics: tokenMetrics,
 	}
 }

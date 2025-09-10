@@ -38,6 +38,8 @@ func Load(path string, v *viper.Viper) error {
 func setDefaults(v *viper.Viper) { 
 	v.SetDefault("app.allowed-redirect", "https://dnk33.com/")
 	v.SetDefault("app.port", 8080)
+	v.SetDefault("app.grpc-port", 8081)
+	v.SetDefault("app.metrics-port", 8082)
 	v.SetDefault("app.base-path", "/openid-connect")
 	v.SetDefault("app.auth-timeout", 5)
 	//v.SetDefault("app.shutdown_timeout", "30s")
