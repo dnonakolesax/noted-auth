@@ -2,9 +2,9 @@ package state
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,7 +26,7 @@ func (rr *RedisStateRepo) GetState(state string) (string, error) {
 	val, err := rr.client.Get(context.TODO(), state).Result()
 
 	if err == redis.Nil {
-		return "", fmt.Errorf("not found")
+		return "", errorvals.ObjectNotFoundInRepoError
 	} else if err != nil {
 		return "", err
 	}

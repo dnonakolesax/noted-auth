@@ -6,8 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/dnonakolesax/noted-auth/internal/model"
-	"github.com/valyala/fasthttp"
 	"github.com/fasthttp/router"
+	"github.com/valyala/fasthttp"
 )
 
 type UserUsecase interface {
@@ -18,6 +18,16 @@ type UserHandler struct {
 	userUsecase UserUsecase
 }
 
+// GerUser godoc
+// @Summary Get user info
+// @Description Returns user's name, surname and username
+// @Tags openid-connect
+// @Param id path string true "User ID"
+// @Produces json
+// @Success 200 {object} model.User
+// @Failure 400
+// @Failure 500
+// @Router /users/{id} [get]
 func (uh *UserHandler) Get(ctx *fasthttp.RequestCtx) {
 	userId := ctx.UserValue("id")
 

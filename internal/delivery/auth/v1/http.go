@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -8,20 +9,31 @@ import (
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
 type AuthUsecase interface {
 	GetAuthLink(retunUrl string) (string, error)
 	GetToken(state string, token string) (model.TokenDTO, error)
+	GetLogoutLink() string
 }
 
 type AuthHandler struct {
 	basicReturnURL string
 	requiredPrefix string
-	authUsecase AuthUsecase
+	authUsecase    AuthUsecase
 }
 
+// HandleAuth godoc
+// @Summary Handle auth redirect to keycloak
+// @Description Generate auth link and redirect to keycloak
+// @Tags openid-connect
+// @Param return_url query string true "Return url"
+// @Success 301
+// @Failure 400
+// @Failure 500
+// @Router /openid-connect/auth [get]
 func (ah *AuthHandler) handleAuth(ctx *fasthttp.RequestCtx) {
 	returnUrl := ctx.QueryArgs().Peek("return_url")
 	var returnUrlString string
@@ -43,12 +55,22 @@ func (ah *AuthHandler) handleAuth(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unknown error while getting auth link %v", err))
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		return 
+		return
 	}
 
 	ctx.Redirect(redirectLink, fasthttp.StatusMovedPermanently)
 }
 
+// HandleToken godoc
+// @Summary Handle callback from keycloak
+// @Description Receives code and state and returns access token and refresh token
+// @Tags openid-connect
+// @Param state query string true "State that was sent to keycloak"
+// @Param code query string true "Access code from keycloak"
+// @Success 301
+// @Failure 400
+// @Failure 500
+// @Router /openid-connect/token [get]
 func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	state := ctx.QueryArgs().Peek("state")
 
@@ -69,9 +91,15 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	tokenDTO, err := ah.authUsecase.GetToken(string(state), string(code))
 
 	if err != nil {
+		if errors.As(err, &errorvals.ObjectNotFoundInRepoError) {
+			slog.Warn(fmt.Sprintf("State not found for request-id %s",
+				slog.Any("requestId", ctx.Request.Header.Peek("X-Request-Id"))))
+			ctx.SetStatusCode(fasthttp.StatusRequestTimeout)
+			return
+		}
 		slog.Error(fmt.Sprintf("Unknown error while getting auth link %v", err))
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		return 
+		return
 	}
 
 	atCookie := fasthttp.Cookie{}
@@ -94,6 +122,10 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	ctx.Redirect(tokenDTO.ReturnURL, fasthttp.StatusMovedPermanently)
 }
 
+func (ah *AuthHandler) HandleLogout(ctx *fasthttp.RequestCtx) {
+	ctx.Redirect(ah.authUsecase.GetLogoutLink(), fasthttp.StatusMovedPermanently)
+}
+
 func (ah *AuthHandler) RegisterRoutes(apiGroup *router.Group) {
 	group := apiGroup.Group("/openid-connect")
 	group.GET("/auth", ah.handleAuth)
@@ -104,6 +136,6 @@ func NewAuthHandler(basicReturnURL string, requiredPrefix string, authUsecase Au
 	return &AuthHandler{
 		basicReturnURL: basicReturnURL,
 		requiredPrefix: requiredPrefix,
-		authUsecase: authUsecase,
+		authUsecase:    authUsecase,
 	}
 }

@@ -9,11 +9,12 @@ import (
 )
 
 type UserRepo struct {
-	worker *dbsql.PGXWorker
+	worker  *dbsql.PGXWorker
+	realmId string
 }
 
 func (ur *UserRepo) GetUser(userId string) (user model.User, funcErr error) {
-	result, err := ur.worker.Query(context.TODO(), ur.worker.Requests["get_user"], userId)
+	result, err := ur.worker.Query(context.TODO(), ur.worker.Requests["get_user"], userId, ur.realmId)
 
 	defer func() {
 		err := result.Close()
@@ -29,7 +30,7 @@ func (ur *UserRepo) GetUser(userId string) (user model.User, funcErr error) {
 	if !result.Next() {
 		return model.User{}, fmt.Errorf("not found")
 	}
-	err = result.Scan(&user.Login, &user.FirstName, &user.LastName) 
+	err = result.Scan(&user.Login, &user.FirstName, &user.LastName)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -40,7 +41,7 @@ func (ur *UserRepo) GetUser(userId string) (user model.User, funcErr error) {
 	return
 }
 
-func NewUserRepo(worker *dbsql.PGXWorker) (*UserRepo, error) {
+func NewUserRepo(worker *dbsql.PGXWorker, realmId string) (*UserRepo, error) {
 	UserRequests, err := dbsql.LoadSQLRequests("./internal/repo/user/sql_requests")
 
 	if err != nil {
@@ -52,6 +53,7 @@ func NewUserRepo(worker *dbsql.PGXWorker) (*UserRepo, error) {
 	}
 
 	return &UserRepo{
-		worker: worker,
+		worker:  worker,
+		realmId: realmId,
 	}, nil
 }

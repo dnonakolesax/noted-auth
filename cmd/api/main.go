@@ -3,20 +3,24 @@ package main
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 
-
+	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
 	"github.com/spf13/viper"
 	"github.com/valyala/fasthttp"
-	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	dbredis "github.com/dnonakolesax/noted-auth/internal/db/redis"
 	dbsql "github.com/dnonakolesax/noted-auth/internal/db/sql"
+	"github.com/dnonakolesax/noted-auth/internal/httpclient"
+	"github.com/dnonakolesax/noted-auth/internal/logger"
+	"github.com/dnonakolesax/noted-auth/internal/metrics"
+	"github.com/dnonakolesax/noted-auth/internal/middlewares"
 	"github.com/dnonakolesax/noted-auth/internal/routing"
 
 	stateRepo "github.com/dnonakolesax/noted-auth/internal/repo/state"
@@ -26,9 +30,9 @@ import (
 
 	authDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1"
 	userDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1"
-	
+
 	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
-	
+
 	"google.golang.org/grpc"
 
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -37,13 +41,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// @title OIDC API
+// @version 1.0
+// @description API for authorising users and storing their info
+
+// @contact.name G
+// @contact.email bg@dnk33.com
+
+// @host oauth.dnk33.com
+// @BasePath /api/v1/iam
 func main() {
 	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
 	v := viper.New()
 
-	err := configs.Load("../../configs/", v)
+	err := configs.Load("./configs/", v)
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error loading config: %v", err))
@@ -54,17 +67,28 @@ func main() {
 	psqlConfig := configs.NewRDBConfig(v)
 	redisConfig := configs.NewRedisConfig(v)
 	appConfig := configs.NewServiceConfig(v)
+	serverConfig := configs.NewHTTPServerConfig(v)
+	httpClientRetryPolicyConfig := configs.NewHTTPRetryPolicyConfig(v)
+	httpClientConfig := configs.NewHTTPClientConfig(v, httpClientRetryPolicyConfig)
+
+	/************************************************/
+	/*                 LOGGER SETUP                 */
+	/************************************************/
+
+	appLogger := logger.NewLogger(appConfig.LogLevel, appConfig.LogAddSource)
+	slog.SetDefault(appLogger)
 
 	/************************************************/
 	/*               SQL DB CONNECTION              */
 	/************************************************/
 
 	psqlConn, err := dbsql.NewPGXConn(psqlConfig)
-	
+
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error connecting to database: %v", err))
 		return
 	}
+	defer psqlConn.Disconnect()
 
 	psqlWorker, err := dbsql.NewPGXWorker(psqlConn)
 
@@ -72,71 +96,55 @@ func main() {
 		slog.Error(fmt.Sprintf("Error creating worker: %v", err))
 		return
 	}
-	
+
 	/************************************************/
 	/*              REDIS DB CONNECTION             */
 	/************************************************/
 
-	redisClient := dbredis.NewClient(redisConfig)
+	redisClient, err := dbredis.NewClient(redisConfig)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error connecting to redis: %v", err))
+		return
+	}
+	defer redisClient.Close()
 
 	/************************************************/
 	/*                METRICS SETUP                 */
 	/************************************************/
-	
+
 	reg := prometheus.NewRegistry()
-
-	kcRequestDurations := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "keycloak_post_request_duration_ms",
-		Help:    "A histogram of the keycloak token POST request durations in ms.",
-		Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
-	})
-
-	kcRequestOks := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "keycloak_post_request_200s",
-		Help: "The total number of 200 keycloak token POST requests.",
-	})
-
-	kcRequest400s := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "keycloak_post_request_400s",
-		Help: "The total number of 400 keycloak token POST requests.",
-	})
-
-	kcRequest500s := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "keycloak_post_request_500s",
-		Help: "The total number of 500 keycloak token POST requests.",
-	})
 
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		kcRequestDurations,
-		kcRequestOks,
-		kcRequest400s,
-		kcRequest500s,
 	)
 
-	tokenMetrics := usecase.TokenMetrics{
-		RequestDurations: kcRequestDurations,
-		RequestOks: kcRequestOks,
-		RequestBads: kcRequest400s,
-		RequestServErrs: kcRequest500s,
-	}
+	tokenRequestMetrics := metrics.NewHTTPRequestMetrics(reg, "keycloak_token_post")
 
-	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
-	
+	http.Handle(appConfig.MetricsEndpoint, promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+
 	go func() {
-		err := http.ListenAndServe(":"+string(appConfig.MetricsPort), nil)
+		slog.Info("Starting metrics server", slog.Int("Port", int(appConfig.MetricsPort)))
+		err := http.ListenAndServe(":"+strconv.Itoa(int(appConfig.MetricsPort)), nil)
 		if err != nil {
 			slog.Error(fmt.Sprintf("Error starting metrics server: %v", err))
-			return 
+			panic(err)
 		}
 	}()
+
+	/************************************************/
+	/*              HTTP CLIENT SETUP               */
+	/************************************************/
+
+	httpClient := httpclient.NewWithRetry(kcConfig.RealmAddress+kcConfig.TokenEndpoint, httpClientConfig, tokenRequestMetrics)
+
 	/************************************************/
 	/*                  REPOS INIT                  */
 	/************************************************/
 
 	stateRepository := stateRepo.NewRedisStateRepo(redisClient)
-	userRepository, err := userRepo.NewUserRepo(psqlWorker)
+	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmId)
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error creating user repository: %v", err))
@@ -147,7 +155,7 @@ func main() {
 	/*                USECASES INIT                 */
 	/************************************************/
 
-	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, tokenMetrics)
+	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, httpClient)
 	userUsecase := usecase.NewUserUsecase(userRepository)
 
 	/************************************************/
@@ -157,7 +165,6 @@ func main() {
 	authHandler := authDelivery.NewAuthHandler(appConfig.AllowedRedirect, appConfig.AllowedRedirect, stateUsecase)
 	userHandler := userDelivery.NewUserHandler(userUsecase)
 
-	
 	/************************************************/
 	/*               HTTP ROUTER SETUP              */
 	/************************************************/
@@ -170,25 +177,26 @@ func main() {
 	/************************************************/
 	/*               GRPC SERVER START              */
 	/************************************************/
-	listen, err := net.Listen("tcp", ":8082")
+
+	listen, err := net.Listen("tcp", ":"+strconv.Itoa(int(appConfig.GRPCPort)))
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error listening grpc net: %v", err))
-		return
+		panic(err)
 	}
-	
+
 	grpcSrv := grpc.NewServer()
 	userProto.RegisterUserServiceServer(grpcSrv, userDelivery.NewUserService(userUsecase))
 
 	go func() {
+		slog.Info("Starting GRPC server", slog.Int("Port", int(appConfig.GRPCPort)))
 		err = grpcSrv.Serve(listen)
 
 		if err != nil {
 			slog.Error(fmt.Sprintf("Error starting grpc server: %v", err))
+			panic(err)
 		}
 	}()
-
-
 
 	/************************************************/
 	/*               HTTP SERVER START              */
@@ -197,16 +205,31 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	srv := fasthttp.Server{
-		Handler: router.Router().Handler,
+		Handler: middlewares.CommonMiddleware(router.Router().Handler),
+
+		ReadTimeout:  serverConfig.ReadTimeout,
+		WriteTimeout: serverConfig.WriteTimeout,
+		IdleTimeout:  serverConfig.IdleTimeout,
+
+		MaxRequestBodySize: serverConfig.MaxReqBodySize,
+		ReadBufferSize:     serverConfig.ReadBufferSize,
+		WriteBufferSize:    serverConfig.WriteBufferSize,
+
+		Concurrency:        serverConfig.Concurrency,
+		MaxConnsPerIP:      serverConfig.MaxConnsPerIP,
+		MaxRequestsPerConn: serverConfig.MaxRequestsPerConn,
+
+		TCPKeepalivePeriod: serverConfig.TCPKeepAlivePeriod,
 	}
 
 	go func() {
-		err := srv.ListenAndServe(":" + string(appConfig.Port), )
+		slog.Info("Starting HTTP server", slog.Int("Port", int(appConfig.Port)))
+		err := srv.ListenAndServe(":" + strconv.Itoa(int(appConfig.Port)))
 		if err != nil {
 			slog.Error(fmt.Sprintf("Couldn't start server: %v", err))
 		}
 	}()
-	
+
 	sig := <-quit
 	slog.Info(fmt.Sprintf("Received stop signal: %v", sig))
 	err = srv.Shutdown()

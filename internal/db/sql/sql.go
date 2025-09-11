@@ -7,15 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/dnonakolesax/noted-auth/internal/configs"
 )
 
 type PGXConn struct {
-	pool   *pgxpool.Pool
+	pool           *pgxpool.Pool
+	requestTimeout time.Duration
 }
 
 type RDBErr struct {
@@ -32,17 +34,44 @@ type PGXResponse struct {
 }
 
 func NewPGXConn(config configs.RDBConfig) (*PGXConn, error) {
-	var err error
-	pool, err := pgxpool.New(context.Background(), fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=disable",
+	connString := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=disable",
 		config.Login,
 		config.Password,
 		config.Address,
 		config.Port,
-		config.DBName))
+		config.DBName)
+
+	pgxConfig, err := pgxpool.ParseConfig(connString)
+
 	if err != nil {
 		return nil, err
 	}
-	return &PGXConn{pool: pool}, nil
+
+	pgxConfig.ConnConfig.ConnectTimeout = config.ConnTimeout
+
+	pgxConfig.MaxConns = int32(config.MaxConns)
+	pgxConfig.MinConns = int32(config.MinConns)
+	pgxConfig.MaxConnLifetime = config.MaxConnLifetime
+	pgxConfig.MaxConnIdleTime = config.MaxConnIdleTime
+	pgxConfig.HealthCheckPeriod = config.HealthCheckPeriod
+
+	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout*2)
+	defer cancel()
+
+	pool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
+	if err != nil {
+		return nil, fmt.Errorf("CreatePool error: %v", err)
+	}
+
+	poolCtx, poolCancel := context.WithTimeout(context.Background(), config.RequestTimeout)
+	defer poolCancel()
+	err = pool.Ping(poolCtx)
+
+	if err != nil {
+		return nil, fmt.Errorf("Ping error: %v", err)
+	}
+
+	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout}, nil
 }
 
 func (pc *PGXConn) Disconnect() {
@@ -50,7 +79,7 @@ func (pc *PGXConn) Disconnect() {
 }
 
 type PGXWorker struct {
-	Conn *PGXConn
+	Conn     *PGXConn
 	Requests map[string]string
 }
 
@@ -86,20 +115,23 @@ func LoadSQLRequests(dirPath string) (map[string]string, error) {
 }
 
 func NewPGXWorker(conn *PGXConn) (*PGXWorker, error) {
-	requests, err := LoadSQLRequests("./internal/db/sql/requests")
+	//requests, err := LoadSQLRequests("./internal/db/sql/requests")
 
-	if err != nil {
-		return nil, err
-	}
+	requests := make(map[string]string)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &PGXWorker{
-		Conn: conn,
+		Conn:     conn,
 		Requests: requests,
 	}, nil
 }
 
 func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) error {
-	_, err := pw.Conn.pool.Exec(ctx, sql, args...)
+	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
+	defer cancel()
+	_, err := pw.Conn.pool.Exec(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
@@ -114,7 +146,9 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 }
 
 func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{}) (*PGXResponse, error) {
-	result, err := pw.Conn.pool.Query(ctx, sql, args...)
+	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
+	defer cancel()
+	result, err := pw.Conn.pool.Query(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
@@ -127,7 +161,7 @@ func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{})
 
 func (pw *PGXWorker) Transaction(request []string) error {
 	if len(request) > 0 {
-		return fmt.Errorf("пошёл нахуй")
+		return fmt.Errorf("unimplemented")
 	}
 	return nil
 }
@@ -136,17 +170,13 @@ func (pr *PGXResponse) Next() bool {
 	return pr.rows.Next()
 }
 
-// func (pr *PGXResponse) Size() int {
-// 	return len(pr.rows.)
-// }
-
 func (pr *PGXResponse) Scan(dest ...any) error {
 
 	// for pr.rows.Next() {
-		err := pr.rows.Scan(dest...)
-		if err != nil {
-			return fmt.Errorf("scan error: %v", err)
-		}
+	err := pr.rows.Scan(dest...)
+	if err != nil {
+		return fmt.Errorf("scan error: %v", err)
+	}
 	//}
 
 	return nil

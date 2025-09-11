@@ -98,8 +98,8 @@ func _UserService_GetUserCtx_Handler(srv interface{}, ctx context.Context, dec f
 		Server:     srv,
 		FullMethod: UserService_GetUserCtx_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserServiceServer).GetUserCtx(ctx, req.(*UserId))
+	handler := func(cntxt context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserCtx(cntxt, req.(*UserId))
 	}
 	return interceptor(ctx, in, info, handler)
 }

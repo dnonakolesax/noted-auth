@@ -13,9 +13,9 @@ type UserServer struct {
 	userUsecase UserUsecase
 }
 
-
 func (us *UserServer) GetUserCtx(ctx context.Context, req *proto.UserId) (*proto.UserInfo, error) {
 	user, err := us.userUsecase.Get(req.Uuid)
+	println(ctx.Value("abc"))
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error getting user: %v, id: %s", err, ctx.Value("ReqId")))
@@ -23,9 +23,9 @@ func (us *UserServer) GetUserCtx(ctx context.Context, req *proto.UserId) (*proto
 	}
 
 	uinfo := &proto.UserInfo{
-		Login: user.Login,
+		Login:     user.Login,
 		FirstName: user.FirstName,
-		LastName: user.LastName,
+		LastName:  user.LastName,
 	}
 
 	return uinfo, nil

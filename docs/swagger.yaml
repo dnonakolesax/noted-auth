@@ -1,0 +1,85 @@
+basePath: /api/v1/iam
+definitions:
+  model.User:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      login:
+        type: string
+    type: object
+host: oauth.dnk33.com
+info:
+  contact:
+    email: bg@dnk33.com
+    name: G
+  description: API for authorising users and storing their info
+  title: OIDC API
+  version: "1.0"
+paths:
+  /openid-connect/auth:
+    get:
+      description: Generate auth link and redirect to keycloak
+      parameters:
+      - description: Return url
+        in: query
+        name: return_url
+        required: true
+        type: string
+      responses:
+        "301":
+          description: Moved Permanently
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Handle auth redirect to keycloak
+      tags:
+      - openid-connect
+  /openid-connect/token:
+    get:
+      description: Receives code and state and returns access token and refresh token
+      parameters:
+      - description: State that was sent to keycloak
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: Access code from keycloak
+        in: query
+        name: code
+        required: true
+        type: string
+      responses:
+        "301":
+          description: Moved Permanently
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Handle callback from keycloak
+      tags:
+      - openid-connect
+  /users/{id}:
+    get:
+      description: Returns user's name, surname and username
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Get user info
+      tags:
+      - openid-connect
+swagger: "2.0"

@@ -1,18 +1,27 @@
 package redis
 
 import (
+	"context"
+	"strconv"
+
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/redis/go-redis/v9"
 )
 
-func NewClient(cfg configs.RedisConfig) *redis.Client {
+func NewClient(cfg configs.RedisConfig) (*redis.Client, error) {
 	options := &redis.Options{
-		Addr: cfg.Address + ":" + string(cfg.Port),
+		Addr:     cfg.Address + ":" + strconv.Itoa(int(cfg.Port)),
 		Password: cfg.Password,
-		DB: 0,
+		DB:       0,
 	}
 
 	client := redis.NewClient(options)
 
-	return client
+	err := client.Ping(context.TODO()).Err()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }

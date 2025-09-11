@@ -7,21 +7,27 @@ import (
 )
 
 type ServiceConfig struct {
-	Port 		    uint
+	Port            uint
 	AuthTimeout     time.Duration
-	BasePath	    string
+	BasePath        string
 	AllowedRedirect string
 	MetricsPort     uint
 	GRPCPort        uint
+	LogLevel        string
+	LogAddSource    bool
+	MetricsEndpoint string
 }
 
 func NewServiceConfig(v *viper.Viper) ServiceConfig {
 	return ServiceConfig{
-		Port: viper.GetUint("app.port"),
-		AuthTimeout: viper.GetDuration("app.auth-timeout"),
-		BasePath: viper.GetString("app.base-path"),
-		AllowedRedirect: viper.GetString("app.allowed-redirect"),
-		MetricsPort: viper.GetUint("app.metrics-port"),
-		GRPCPort: viper.GetUint("app.grpc-port"),
+		Port:            v.GetUint("service.port"),
+		AuthTimeout:     v.GetDuration("service.auth-timeout"),
+		BasePath:        v.GetString("service.base-path"),
+		AllowedRedirect: v.GetString("service.allowed-redirect"),
+		MetricsPort:     v.GetUint("service.metrics-port"),
+		GRPCPort:        v.GetUint("service.grpc-port"),
+		LogLevel:        v.GetString("service.log-level"),
+		LogAddSource:    v.GetBool("service.log-add-source"),
+		MetricsEndpoint: v.GetString("service.metrics-endpoint"),
 	}
 }

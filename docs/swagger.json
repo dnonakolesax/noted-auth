@@ -1,0 +1,129 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API for authorising users and storing their info",
+        "title": "OIDC API",
+        "contact": {
+            "name": "G",
+            "email": "bg@dnk33.com"
+        },
+        "version": "1.0"
+    },
+    "host": "oauth.dnk33.com",
+    "basePath": "/api/v1/iam",
+    "paths": {
+        "/openid-connect/auth": {
+            "get": {
+                "description": "Generate auth link and redirect to keycloak",
+                "tags": [
+                    "openid-connect"
+                ],
+                "summary": "Handle auth redirect to keycloak",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Return url",
+                        "name": "return_url",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "301": {
+                        "description": "Moved Permanently"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/openid-connect/token": {
+            "get": {
+                "description": "Receives code and state and returns access token and refresh token",
+                "tags": [
+                    "openid-connect"
+                ],
+                "summary": "Handle callback from keycloak",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "State that was sent to keycloak",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Access code from keycloak",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "301": {
+                        "description": "Moved Permanently"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "description": "Returns user's name, surname and username",
+                "tags": [
+                    "openid-connect"
+                ],
+                "summary": "Get user info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "model.User": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
