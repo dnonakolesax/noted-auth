@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -11,7 +12,7 @@ import (
 	"syscall"
 
 	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
-	"github.com/spf13/viper"
+	"github.com/dnonakolesax/viper"
 	"github.com/valyala/fasthttp"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
@@ -52,30 +53,44 @@ import (
 // @BasePath /api/v1/iam
 func main() {
 	/************************************************/
+	/*                PANIC CATCHER                 */
+	/************************************************/
+
+	defer func() {
+		err := recover()
+
+		if err != nil {
+			slog.Error("Panic caught in main: ", slog.Any("Error", err))
+		}
+	}()
+
+	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
-	v := viper.New()
 
-	err := configs.Load("./configs/", v)
+	v := viper.New()
+	v.PanicOnNil = true
+	// ondefault
+
+	kcConfig := configs.KeycloakConfig{}
+	psqlConfig := configs.RDBConfig{}
+	redisConfig := configs.RedisConfig{}
+	appConfig := configs.ServiceConfig{}
+	serverConfig := configs.HTTPServerConfig{}
+	httpClientConfig := configs.HTTPClientConfig{}
+	loggerConfig := configs.LoggerConfig{}
+
+	err := configs.Load("./configs/", v, &kcConfig, &psqlConfig, &redisConfig, &appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error loading config: %v", err))
 		return
 	}
-
-	kcConfig := configs.NewKeycloakConfig(v)
-	psqlConfig := configs.NewRDBConfig(v)
-	redisConfig := configs.NewRedisConfig(v)
-	appConfig := configs.NewServiceConfig(v)
-	serverConfig := configs.NewHTTPServerConfig(v)
-	httpClientRetryPolicyConfig := configs.NewHTTPRetryPolicyConfig(v)
-	httpClientConfig := configs.NewHTTPClientConfig(v, httpClientRetryPolicyConfig)
-
 	/************************************************/
 	/*                 LOGGER SETUP                 */
 	/************************************************/
 
-	appLogger := logger.NewLogger(appConfig.LogLevel, appConfig.LogAddSource)
+	appLogger := logger.NewLogger(loggerConfig.LogLevel, loggerConfig.LogAddSource)
 	slog.SetDefault(appLogger)
 
 	/************************************************/
@@ -122,12 +137,15 @@ func main() {
 
 	tokenRequestMetrics := metrics.NewHTTPRequestMetrics(reg, "keycloak_token_post")
 
-	http.Handle(appConfig.MetricsEndpoint, promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+	metricsServer := &http.Server{
+		Handler: promhttp.Handler(),
+		Addr:    ":" + strconv.Itoa(int(appConfig.MetricsPort)),
+	}
 
 	go func() {
 		slog.Info("Starting metrics server", slog.Int("Port", int(appConfig.MetricsPort)))
-		err := http.ListenAndServe(":"+strconv.Itoa(int(appConfig.MetricsPort)), nil)
-		if err != nil {
+		err := metricsServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
 			slog.Error(fmt.Sprintf("Error starting metrics server: %v", err))
 			panic(err)
 		}
@@ -230,10 +248,31 @@ func main() {
 		}
 	}()
 
+	/************************************************/
+	/*               HTTP SERVER STOP               */
+	/************************************************/
 	sig := <-quit
 	slog.Info(fmt.Sprintf("Received stop signal: %v", sig))
 	err = srv.Shutdown()
 	if err != nil {
-		slog.Error(fmt.Sprintf("shutdown returned err: %s \n", err))
+		slog.Error(fmt.Sprintf("Main HTTP shutdown returned err: %s \n", err))
+	}
+
+	/************************************************/
+	/*               GRPC SERVER STOP               */
+	/************************************************/
+
+	grpcSrv.Stop()
+
+	/************************************************/
+	/*             METRICS SERVER STOP              */
+	/************************************************/
+
+	ctx, cancel := context.WithTimeout(context.Background(), serverConfig.IdleTimeout)
+	defer cancel()
+	err = metricsServer.Shutdown(ctx)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Metrics HTTP shutdown returned err: %s \n", err))
 	}
 }
