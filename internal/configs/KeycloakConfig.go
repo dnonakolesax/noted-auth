@@ -10,6 +10,7 @@ const REALM_CLIENT_ID_KEY = "realm.client-id"
 const REALM_CLIENT_SERCRET_KEY = "realm_client_secret"
 const REALM_REDIRECT_URL_KEY = "realm.redirect-url"
 const REALM_ADDRESS_KEY = "realm.base-url"
+const REALM_INTER_ADDRESS_KEY = "realm.inter-url"
 const REALM_STATE_LENGTH_KEY = "realm.state-length"
 const REALM_TOKEN_TIMEOUT_KEY = "realm.te-timeout"
 const REALM_ID_KEY = "realm.id"
@@ -23,6 +24,7 @@ type KeycloakConfig struct {
 	ClientSecret          string
 	RedirectURI           string
 	RealmAddress          string
+	InterRealmAddress          string
 	StateLength           uint
 	TokenTimeout          time.Duration
 	RealmId               string
@@ -37,6 +39,8 @@ func (kc *KeycloakConfig) Load(v *viper.Viper) {
 	kc.ClientSecret = v.GetString(REALM_CLIENT_SERCRET_KEY)
 	kc.RedirectURI = v.GetString(REALM_REDIRECT_URL_KEY)
 	kc.RealmAddress = v.GetString(REALM_ADDRESS_KEY)
+	v.SetDefault(REALM_INTER_ADDRESS_KEY, kc.RealmAddress)
+	kc.InterRealmAddress = v.GetString(REALM_INTER_ADDRESS_KEY)
 	kc.StateLength = v.GetUint(REALM_STATE_LENGTH_KEY)
 	kc.TokenTimeout = v.GetDuration(REALM_TOKEN_TIMEOUT_KEY)
 	kc.RealmId = v.GetString(REALM_ID_KEY)
@@ -51,6 +55,7 @@ func (kc *KeycloakConfig) SetDefaults(v *viper.Viper) {
 	v.SetDefault(REALM_CLIENT_SERCRET_KEY, nil)
 	v.SetDefault(REALM_REDIRECT_URL_KEY, nil)
 	v.SetDefault(REALM_ADDRESS_KEY, nil)
+	v.SetDefault(REALM_ADDRESS_KEY, REALM_INTER_ADDRESS_KEY)
 	v.SetDefault(REALM_STATE_LENGTH_KEY, 32)
 	v.SetDefault(REALM_TOKEN_TIMEOUT_KEY, 10*time.Second)
 	v.SetDefault(REALM_ID_KEY, nil)

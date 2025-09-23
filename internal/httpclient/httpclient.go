@@ -71,11 +71,10 @@ func (hc *HTTPClient) PostForm(ctx context.Context, form url.Values) (*http.Resp
 		resp, err = hc.c.Do(req)
 		reqEnd := time.Now().UnixMilli()
 
-		hc.observeStatusCode(resp.StatusCode)
-
 		hc.metrics.RequestDurations.Observe(float64(reqEnd - reqStart))
 
 		if err == nil {
+			hc.observeStatusCode(resp.StatusCode)
 			if !hc.shouldRetryStatus(resp.StatusCode) {
 				return resp, nil
 			}
@@ -88,6 +87,8 @@ func (hc *HTTPClient) PostForm(ctx context.Context, form url.Values) (*http.Resp
 			}
 			lastErr = fmt.Errorf("retryable HTTP status %d", resp.StatusCode)
 			continue
+		} else {
+			hc.observeStatusCode(http.StatusBadRequest)
 		}
 
 		if !hc.shouldRetryError(err) || attempt == hc.retries.MaxAttempts {

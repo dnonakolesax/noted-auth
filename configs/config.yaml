@@ -25,11 +25,13 @@ postgres:
 redis:
   address: gobddocker-redis-1
   port: 6379
+  request-timeout: 10s
 
 realm:
-  base-url: http://127.0.0.1:8080/realms/noted/protocol/openid-connect/ # URL реалма keycloak
+  base-url: http://127.0.0.1:8080/realms/noted/protocol/openid-connect # URL реалма keycloak
+  inter-url: http://eloquent_noether:8080/realms/noted/protocol/openid-connect # Внутренний  URL реалма keycloak
   client-id: noted-webpage # ID клиента в keycloak
-  redirect-url: http://127.0.0.1:8800/token # URL для редиректа после авторизации
+  redirect-url: http://127.0.0.1:8800/api/v1/iam/openid-connect/token # URL для редиректа после авторизации
   te-timeout: 10s # Таймаут ожидания ответа от POST-запроса на /token (секунды)
   state-length: 32 # Длина параметра state (байты)
   id: a2771237-6233-41ef-a997-840a2eecc7ab

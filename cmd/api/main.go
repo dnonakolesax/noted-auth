@@ -122,7 +122,7 @@ func main() {
 		slog.Error(fmt.Sprintf("Error connecting to redis: %v", err))
 		return
 	}
-	defer redisClient.Close()
+	defer redisClient.Client.Close()
 
 	/************************************************/
 	/*                METRICS SETUP                 */
@@ -155,7 +155,7 @@ func main() {
 	/*              HTTP CLIENT SETUP               */
 	/************************************************/
 
-	httpClient := httpclient.NewWithRetry(kcConfig.RealmAddress+kcConfig.TokenEndpoint, httpClientConfig, tokenRequestMetrics)
+	httpClient := httpclient.NewWithRetry(kcConfig.InterRealmAddress+kcConfig.TokenEndpoint, httpClientConfig, tokenRequestMetrics)
 
 	/************************************************/
 	/*                  REPOS INIT                  */

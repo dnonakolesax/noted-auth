@@ -6,14 +6,18 @@ import (
 
 	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/redis/go-redis/v9"
+
+	dbredis "github.com/dnonakolesax/noted-auth/internal/db/redis"
 )
 
 type RedisStateRepo struct {
-	client *redis.Client
+	client *dbredis.RedisClient
 }
 
 func (rr *RedisStateRepo) SetState(state string, redirectURI string, timeout time.Duration) error {
-	rsp := rr.client.Set(context.TODO(), state, redirectURI, time.Second*timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), rr.client.Timeout)
+	defer cancel()
+	rsp := rr.client.Client.Set(ctx, state, redirectURI, time.Second*timeout)
 
 	if rsp.Err() != nil {
 		return rsp.Err()
@@ -23,7 +27,9 @@ func (rr *RedisStateRepo) SetState(state string, redirectURI string, timeout tim
 }
 
 func (rr *RedisStateRepo) GetState(state string) (string, error) {
-	val, err := rr.client.Get(context.TODO(), state).Result()
+	ctx, cancel := context.WithTimeout(context.Background(), rr.client.Timeout)
+	defer cancel()
+	val, err := rr.client.Client.Get(ctx, state).Result()
 
 	if err == redis.Nil {
 		return "", errorvals.ObjectNotFoundInRepoError
@@ -34,7 +40,7 @@ func (rr *RedisStateRepo) GetState(state string) (string, error) {
 	return val, nil
 }
 
-func NewRedisStateRepo(client *redis.Client) *RedisStateRepo {
+func NewRedisStateRepo(client *dbredis.RedisClient) *RedisStateRepo {
 	return &RedisStateRepo{
 		client: client,
 	}

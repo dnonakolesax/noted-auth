@@ -23,6 +23,7 @@ const POSTGRES_REQUEST_TIMEOUT_KEY = "postgres.request-timeout"
 const REDIS_ADDRESS_KEY = "redis.address"
 const REDIS_PORT_KEY = "redis.port"
 const REDIS_PASSWORD_KEY = "redis_password"
+const REDIS_REQUEST_TIMEOUT_KEY = "redis.request-timeout"
 
 type RDBConfig struct {
 	Address  string
@@ -41,9 +42,10 @@ type RDBConfig struct {
 }
 
 type RedisConfig struct {
-	Address  string
-	Port     uint
-	Password string
+	Address        string
+	Port           uint
+	Password       string
+	RequestTimeout time.Duration
 }
 
 func (rc *RDBConfig) SetDefaults(v *viper.Viper) {
@@ -82,10 +84,12 @@ func (rc *RedisConfig) SetDefaults(v *viper.Viper) {
 	v.SetDefault(REDIS_ADDRESS_KEY, "redis")
 	v.SetDefault(REDIS_PORT_KEY, 6379)
 	v.SetDefault(REDIS_PASSWORD_KEY, nil)
+	v.SetDefault(REDIS_REQUEST_TIMEOUT_KEY, 10*time.Second)
 }
 
 func (rc *RedisConfig) Load(v *viper.Viper) {
 	rc.Address = v.GetString(REDIS_ADDRESS_KEY)
 	rc.Port = v.GetUint(REDIS_PORT_KEY)
 	rc.Password = v.GetString(REDIS_PASSWORD_KEY)
+	rc.RequestTimeout = v.GetDuration(REDIS_REQUEST_TIMEOUT_KEY)
 }

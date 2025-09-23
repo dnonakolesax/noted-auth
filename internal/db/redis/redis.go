@@ -3,12 +3,18 @@ package redis
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/redis/go-redis/v9"
 )
 
-func NewClient(cfg configs.RedisConfig) (*redis.Client, error) {
+type RedisClient struct {
+	Client *redis.Client
+	Timeout time.Duration
+}
+
+func NewClient(cfg configs.RedisConfig) (*RedisClient, error) {
 	options := &redis.Options{
 		Addr:     cfg.Address + ":" + strconv.Itoa(int(cfg.Port)),
 		Password: cfg.Password,
@@ -17,11 +23,16 @@ func NewClient(cfg configs.RedisConfig) (*redis.Client, error) {
 
 	client := redis.NewClient(options)
 
-	err := client.Ping(context.TODO()).Err()
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+	defer cancel()
+	err := client.Ping(ctx).Err()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return &RedisClient{
+		Client: client,
+		Timeout: cfg.RequestTimeout,
+	}, nil
 }

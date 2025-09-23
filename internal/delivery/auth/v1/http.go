@@ -58,7 +58,7 @@ func (ah *AuthHandler) handleAuth(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	ctx.Redirect(redirectLink, fasthttp.StatusMovedPermanently)
+	ctx.Redirect(redirectLink, fasthttp.StatusFound)
 }
 
 // HandleToken godoc
@@ -119,11 +119,11 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.SetCookie(&atCookie)
 	ctx.Response.Header.SetCookie(&rtCookie)
 
-	ctx.Redirect(tokenDTO.ReturnURL, fasthttp.StatusMovedPermanently)
+	ctx.Redirect(tokenDTO.ReturnURL, fasthttp.StatusFound)
 }
 
 func (ah *AuthHandler) HandleLogout(ctx *fasthttp.RequestCtx) {
-	ctx.Redirect(ah.authUsecase.GetLogoutLink(), fasthttp.StatusMovedPermanently)
+	ctx.Redirect(ah.authUsecase.GetLogoutLink(), fasthttp.StatusFound)
 }
 
 func (ah *AuthHandler) RegisterRoutes(apiGroup *router.Group) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"time"
 
@@ -43,7 +44,13 @@ func (ac *AuthUsecase) GetAuthLink(returnUrl string) (string, error) {
 		return "", err
 	}
 
-	link := fmt.Sprintf("%s/%s?client_id=%s&response_type=code&state=%s&redirect_uri=%s", ac.kcConfig.RealmAddress, ac.kcConfig.AuthEndpoint, ac.kcConfig.ClientId, encodedState, ac.kcConfig.RedirectURI)
+	data := url.Values{}
+	data.Set("client_id", ac.kcConfig.ClientId)
+	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
+	data.Set("state", encodedState)
+	data.Set("response_type", "code")
+	slog.Info(data.Encode())
+	link := fmt.Sprintf("%s%s?%s", ac.kcConfig.RealmAddress, ac.kcConfig.AuthEndpoint, data.Encode())
 
 	return link, nil
 }
@@ -62,7 +69,9 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 	data.Set("code", code)
 	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
 
-	resp, err := ac.httpClient.PostForm(context.TODO(), data)
+	pCtx, cancel := context.WithTimeout(context.Background(), time.Second*ac.kcTimeout)
+	defer cancel()
+	resp, err := ac.httpClient.PostForm(pCtx, data)
 	defer resp.Body.Close()
 
 	if err != nil {
