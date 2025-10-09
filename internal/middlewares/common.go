@@ -5,32 +5,35 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/dnonakolesax/noted-auth/internal/cryptos"
 	"github.com/valyala/fasthttp"
+
+	"github.com/dnonakolesax/noted-auth/internal/cryptos"
 )
+
+const requestIDSize = 16
 
 func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 	return fasthttp.RequestHandler(func(ctx *fasthttp.RequestCtx) {
-		requestId := ctx.Request.Header.Peek("X-Request-Id")
-		var reqId string
-		if requestId == nil {
+		requestID := ctx.Request.Header.Peek("X-Request-Id")
+		var reqID string
+		if requestID == nil {
 			var err error
-			requestId, err = cryptos.GenRandomString(16)
-			reqId = base64.RawURLEncoding.EncodeToString(requestId)
+			requestID, err = cryptos.GenRandomString(requestIDSize)
+			reqID = base64.RawURLEncoding.EncodeToString(requestID)
 			if err != nil {
 				slog.Error(fmt.Sprintf("Error generating RequestId: %v", err))
 				ctx.Response.SetStatusCode(fasthttp.StatusBadRequest)
 				return
 			}
-			ctx.Request.Header.Set("X-Request-Id", reqId)
+			ctx.Request.Header.Set("X-Request-Id", reqID)
 		} else {
-			reqId = string(requestId)
+			reqID = string(requestID)
 		}
 		slog.Info("Received Request",
 			slog.String("method", string(ctx.Method())),
 			slog.String("path", string(ctx.Path())),
 			slog.String("ip", ctx.RemoteIP().String()),
-			slog.String("requestId", reqId),
+			slog.String("requestId", reqID),
 			slog.String("userAgent", string(ctx.UserAgent())),
 		)
 		now := ctx.Time().UnixMilli()
@@ -39,7 +42,7 @@ func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		slog.Info("Completed request",
 			slog.String("method", string(ctx.Method())),
 			slog.String("path", string(ctx.Path())),
-			slog.String("requestId", reqId),
+			slog.String("requestId", reqID),
 			slog.Int("status", ctx.Response.StatusCode()),
 			slog.Int("duration", int(end-now)),
 		)

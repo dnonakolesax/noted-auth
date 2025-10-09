@@ -1,22 +1,32 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"time"
 )
 
 func NewLogger(cfgLogLevel string, addSource bool) *slog.Logger {
 	commitHash, ok := os.LookupEnv("CI_COMMIT_HASH")
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
 	if !ok {
-		commitHash = "#UNDEFINED"
+		hash, err := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD").Output()
+		if err != nil {
+			panic(err)
+		}
+		commitHash = string(hash)
 	}
 
-	machineID, ok := os.LookupEnv("MACHINE_IDENTIFIER")
+	podName, ok := os.LookupEnv("POD_NAME")
 
 	if !ok {
-		panic("Machine ID undefined")
+		podName = "000000"
 	}
 
 	var logLevel slog.Level
@@ -42,7 +52,7 @@ func NewLogger(cfgLogLevel string, addSource bool) *slog.Logger {
 		slog.Group("exe info",
 			slog.Int("pid", os.Getpid()),
 			slog.String("commit hash", commitHash),
-			slog.String("machine id", machineID),
+			slog.String("pod name", podName),
 		),
 	)
 

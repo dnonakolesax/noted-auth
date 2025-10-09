@@ -1,19 +1,31 @@
 package configs
 
 import (
-	"github.com/dnonakolesax/viper"
+	"net/http"
 	"time"
+
+	"github.com/dnonakolesax/viper"
 )
 
-const HTTPC_RETRY_MAX_ATTEMPTS_KEY = "http-client.retries.max-attempts"
-const HTTPC_RETRY_BASE_DELAY_KEY = "http-client.retries.base-delay"
-const HTTPC_RETRY_MAX_DELAY_KEY = "http-client.retries.max-delay"
-const HTTPC_RETRY_ON_STATUS_KEY = "http-client.retries.on-status"
-const HTTPC_DIAL_TIMEOUT_KEY = "http-client.dial-timeout"
-const HTTPC_REQUEST_TIMEOUT_KEY = "http-client.request-timeout"
-const HTTPC_KEEP_ALIVE_KEY = "http-client.keep-alive"
-const HTTPC_MAX_IDLE_CONNS_KEY = "http-client.max-idle-conns"
-const HTTPC_IDLE_CONN_TIMEOUT_KEY = "http-client.idle-conn-timeout"
+const (
+	clientHTTPMaxRetryAttemptsKey = "http-client.retries.max-attempts"
+	cHTTPMaxRetryAttemptsDefault  = 3
+	clientHTTPRetryBaseDelayKey   = "http-client.retries.base-delay"
+	cHTTPRetryBaseDelayDefault    = 200 * time.Millisecond
+	clientHTTPRetryMaxDelayKey    = "http-client.retries.max-delay"
+	cHTTPRetryMaxDelayDefault     = 3 * time.Second
+	clientHTTPRetryOnStatusKey    = "http-client.retries.on-status"
+	clientHTTPDialTimeoutKey      = "http-client.dial-timeout"
+	cHTTPDialTimeoutDefault       = 5 * time.Second
+	clientHTTPRequestTimeoutKey   = "http-client.request-timeout"
+	cHTTPRequestTimeoutDefault    = 30 * time.Second
+	clientHTTPKeepAliveKey        = "http-client.keep-alive"
+	cHTTPRequestKeepAliveDefault  = 30 * time.Second
+	clientHTTPMaxIdleConnsKey     = "http-client.max-idle-conns"
+	cHTTPMaxIdleConnsDefault      = 100
+	clientHTTPIdleConnTimeoutKey  = "http-client.idle-conn-timeout"
+	cHTTPIdleConnTimeoutDefault   = 90 * time.Second
+)
 
 type HTTPRetryPolicyConfig struct {
 	MaxAttempts   int
@@ -23,24 +35,25 @@ type HTTPRetryPolicyConfig struct {
 }
 
 func (hc *HTTPRetryPolicyConfig) Load(v *viper.Viper) {
-	retriesConfig := v.GetIntSlice(HTTPC_RETRY_ON_STATUS_KEY)
+	retriesConfig := v.GetIntSlice(clientHTTPRetryOnStatusKey)
 	retryOnStatus := make(map[int]bool, len(retriesConfig))
 
 	for _, status := range retriesConfig {
 		retryOnStatus[status] = true
 	}
 
-	hc.MaxAttempts = v.GetInt(HTTPC_RETRY_MAX_ATTEMPTS_KEY)
-	hc.BaseDelay = v.GetDuration(HTTPC_RETRY_BASE_DELAY_KEY)
-	hc.MaxDelay = v.GetDuration(HTTPC_RETRY_MAX_DELAY_KEY)
+	hc.MaxAttempts = v.GetInt(clientHTTPMaxRetryAttemptsKey)
+	hc.BaseDelay = v.GetDuration(clientHTTPRetryBaseDelayKey)
+	hc.MaxDelay = v.GetDuration(clientHTTPRetryMaxDelayKey)
 	hc.RetryOnStatus = retryOnStatus
 }
 
 func (hc *HTTPRetryPolicyConfig) SetDefaults(v *viper.Viper) {
-	v.SetDefault(HTTPC_RETRY_MAX_ATTEMPTS_KEY, 3)
-	v.SetDefault(HTTPC_RETRY_BASE_DELAY_KEY, 200*time.Millisecond)
-	v.SetDefault(HTTPC_RETRY_MAX_DELAY_KEY, 3*time.Second)
-	v.SetDefault(HTTPC_RETRY_ON_STATUS_KEY, []int{429, 502, 503, 504})
+	v.SetDefault(clientHTTPMaxRetryAttemptsKey, cHTTPMaxRetryAttemptsDefault)
+	v.SetDefault(clientHTTPRetryBaseDelayKey, cHTTPRetryBaseDelayDefault)
+	v.SetDefault(clientHTTPRetryMaxDelayKey, cHTTPRetryMaxDelayDefault)
+	v.SetDefault(clientHTTPRetryOnStatusKey, []int{http.StatusTooManyRequests, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout})
 }
 
 type HTTPClientConfig struct {
@@ -53,19 +66,19 @@ type HTTPClientConfig struct {
 }
 
 func (hc *HTTPClientConfig) SetDefaults(v *viper.Viper) {
-	v.SetDefault(HTTPC_DIAL_TIMEOUT_KEY, 5*time.Second)
-	v.SetDefault(HTTPC_REQUEST_TIMEOUT_KEY, 30*time.Second)
-	v.SetDefault(HTTPC_KEEP_ALIVE_KEY, 30*time.Second)
-	v.SetDefault(HTTPC_MAX_IDLE_CONNS_KEY, 100)
-	v.SetDefault(HTTPC_IDLE_CONN_TIMEOUT_KEY, 90*time.Second)
+	v.SetDefault(clientHTTPDialTimeoutKey, cHTTPDialTimeoutDefault)
+	v.SetDefault(clientHTTPRequestTimeoutKey, cHTTPRequestTimeoutDefault)
+	v.SetDefault(clientHTTPKeepAliveKey, cHTTPRequestKeepAliveDefault)
+	v.SetDefault(clientHTTPMaxIdleConnsKey, cHTTPMaxIdleConnsDefault)
+	v.SetDefault(clientHTTPIdleConnTimeoutKey, cHTTPIdleConnTimeoutDefault)
 	hc.RetryPolicy.SetDefaults(v)
 }
 
 func (hc *HTTPClientConfig) Load(v *viper.Viper) {
-	hc.DialTimeout = v.GetDuration(HTTPC_DIAL_TIMEOUT_KEY)
-	hc.RequestTimeout = v.GetDuration(HTTPC_REQUEST_TIMEOUT_KEY)
-	hc.KeepAlive = v.GetDuration(HTTPC_KEEP_ALIVE_KEY)
-	hc.MaxIdleConns = v.GetInt(HTTPC_MAX_IDLE_CONNS_KEY)
-	hc.IdleConnTimeout = v.GetDuration(HTTPC_IDLE_CONN_TIMEOUT_KEY)
+	hc.DialTimeout = v.GetDuration(clientHTTPDialTimeoutKey)
+	hc.RequestTimeout = v.GetDuration(clientHTTPRequestTimeoutKey)
+	hc.KeepAlive = v.GetDuration(clientHTTPKeepAliveKey)
+	hc.MaxIdleConns = v.GetInt(clientHTTPMaxIdleConnsKey)
+	hc.IdleConnTimeout = v.GetDuration(clientHTTPIdleConnTimeoutKey)
 	hc.RetryPolicy.Load(v)
 }

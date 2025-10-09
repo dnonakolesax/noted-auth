@@ -4,15 +4,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/muesli/cache2go"
+
+	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 )
 
 type InMemStateRepo struct {
 	client *cache2go.CacheTable
 }
 
-func (sr *InMemStateRepo) SetState(state string, redirectURI string, timeout uint) error {
+func (sr *InMemStateRepo) SetState(state string, redirectURI string, timeout int64) error {
 	sr.client.Add(state, time.Second*time.Duration(timeout), redirectURI)
 
 	return nil
@@ -22,11 +23,17 @@ func (sr *InMemStateRepo) GetState(state string) (string, error) {
 	val, err := sr.client.Value(state)
 
 	if err != nil {
-		if errors.As(err, cache2go.ErrKeyNotFound) {
-			return "", errorvals.ObjectNotFoundInRepoError
+		if errors.Is(err, cache2go.ErrKeyNotFound) {
+			return "", errorvals.ErrObjectNotFoundInRepoError
 		}
 		return "", err
 	}
 
-	return val.Data().(string), nil
+	stringData, ok := val.Data().(string)
+
+	if !ok {
+		return "", errors.New("proebali")
+	}
+
+	return stringData, nil
 }

@@ -29,7 +29,17 @@ type AuthUsecase struct {
 	httpClient   *httpclient.HTTPClient
 }
 
-func (ac *AuthUsecase) GetAuthLink(returnUrl string) (string, error) {
+func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig,
+	httpClient *httpclient.HTTPClient) *AuthUsecase {
+	return &AuthUsecase{
+		authLifetime: authLifetime,
+		stateRepo:    stateRepo,
+		kcConfig:     kcConfig,
+		httpClient:   httpClient,
+	}
+}
+
+func (ac *AuthUsecase) GetAuthLink(returnURL string) (string, error) {
 	state, err := cryptos.GenRandomString(ac.kcConfig.StateLength)
 
 	if err != nil {
@@ -38,14 +48,14 @@ func (ac *AuthUsecase) GetAuthLink(returnUrl string) (string, error) {
 
 	encodedState := base64.URLEncoding.EncodeToString(state)
 
-	err = ac.stateRepo.SetState(encodedState, returnUrl, time.Second*ac.authLifetime)
+	err = ac.stateRepo.SetState(encodedState, returnURL, ac.authLifetime)
 
 	if err != nil {
 		return "", err
 	}
 
 	data := url.Values{}
-	data.Set("client_id", ac.kcConfig.ClientId)
+	data.Set("client_id", ac.kcConfig.ClientID)
 	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
 	data.Set("state", encodedState)
 	data.Set("response_type", "code")
@@ -64,15 +74,17 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", ac.kcConfig.ClientId)
+	data.Set("client_id", ac.kcConfig.ClientID)
 	data.Set("client_secret", ac.kcConfig.ClientSecret)
 	data.Set("code", code)
 	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
 
-	pCtx, cancel := context.WithTimeout(context.Background(), time.Second*ac.kcTimeout)
+	pCtx, cancel := context.WithTimeout(context.Background(), ac.kcTimeout)
 	defer cancel()
 	resp, err := ac.httpClient.PostForm(pCtx, data)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if err != nil {
 		return model.TokenDTO{}, err
@@ -93,14 +105,6 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 }
 
 func (ac *AuthUsecase) GetLogoutLink() string {
-	return fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s", ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI)
-}
-
-func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig, httpClient *httpclient.HTTPClient) *AuthUsecase {
-	return &AuthUsecase{
-		authLifetime: authLifetime,
-		stateRepo:    stateRepo,
-		kcConfig:     kcConfig,
-		httpClient:   httpClient,
-	}
+	return fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s",
+		ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI)
 }

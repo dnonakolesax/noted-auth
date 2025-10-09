@@ -6,35 +6,57 @@ import (
 	"github.com/dnonakolesax/viper"
 )
 
-const POSTGRES_ADDRESS_KEY = "postgres.address"
-const POSTGRES_PORT_KEY = "postgres.port"
-const POSTGRES_DB_NAME_KEY = "postgres.database"
-const POSTGRES_LOGIN_KEY = "postgres.user"
-const POSTGRES_PASSWORD_KEY = "postgres_password"
+const (
+	postgresAddressKey          = "postgres.address"
+	postgresDefaultAddress      = "postgres"
+	postgresPortKey             = "postgres.port"
+	postgresDefaultPort         = 5432
+	postgresDBNameKey           = "postgres.database"
+	postgresDefaultDBName       = "keycloak"
+	postgresLoginKey            = "postgres.user"
+	postgresPasswordKey         = "postgres_password"
+	postgresRequestsPathKey     = "postgres.requests-path"
+	postgresDefaultRequestsPath = "./sql_requests"
+)
 
-const POSTGRES_CONN_TIMEOUT_KEY = "postgres.conn-timeout"
-const POSTGRES_MIN_CONNS_KEY = "postgres.min-conns"
-const POSTGRES_MAX_CONNS_KEY = "postgres.max-conns"
-const POSTGRES_MAX_CONN_LIFETIME_KEY = "postgres.max-conn-lifetime"
-const POSTGRES_MAX_CONN_IDLE_TIME_KEY = "postgres.max-conn-idle-time"
-const POSTGRES_HEALTHCHECK_PERIOD_KEY = "postgres.healthcheck-period"
-const POSTGRES_REQUEST_TIMEOUT_KEY = "postgres.request-timeout"
+const (
+	postgresConnTimeoutKey           = "postgres.conn-timeout"
+	postgresDefaultConnTimeout       = 10 * time.Second
+	postgresMinConnsKey              = "postgres.min-conns"
+	postgresDefaultMinConns          = 5
+	postgresMaxConnsKey              = "postgres.max-conns"
+	postgresDefaultMaxConns          = 20
+	postgresMaxConnLifetimeKey       = "postgres.max-conn-lifetime"
+	postgresDefaultMaxConnLifetime   = time.Hour
+	postgresMaxConnIdleTimeKey       = "postgres.max-conn-idle-time"
+	postgresDefaultMaxConnIdleTime   = 30 * time.Minute
+	postgresHealthCheckPeriodKey     = "postgres.healthcheck-period"
+	postgresDefaultHealthCheckPeriod = time.Minute
+	postgresRequestTimeoutKey        = "postgres.request-timeout"
+	postgresDefaultRequestTimeout    = 30 * time.Second
+)
 
-const REDIS_ADDRESS_KEY = "redis.address"
-const REDIS_PORT_KEY = "redis.port"
-const REDIS_PASSWORD_KEY = "redis_password"
-const REDIS_REQUEST_TIMEOUT_KEY = "redis.request-timeout"
+const (
+	RedisAddressKey            = "redis.address"
+	RedisDefaultAddress        = "redis"
+	RedisPortKey               = "redis.port"
+	RedisDefaultPort           = 6379
+	RedisPasswordKey           = "redis_password"
+	RedisRequestTimeoutKey     = "redis.request-timeout"
+	RedisDefaultRequestTimeout = 10 * time.Second
+)
 
 type RDBConfig struct {
-	Address  string
-	Port     uint
-	DBName   string
-	Login    string
-	Password string
+	Address      string
+	Port         uint
+	DBName       string
+	Login        string
+	Password     string
+	RequestsPath string
 
 	ConnTimeout       time.Duration
-	MinConns          int
-	MaxConns          int
+	MinConns          int32
+	MaxConns          int32
 	MaxConnLifetime   time.Duration
 	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
@@ -43,53 +65,55 @@ type RDBConfig struct {
 
 type RedisConfig struct {
 	Address        string
-	Port           uint
+	Port           int
 	Password       string
 	RequestTimeout time.Duration
 }
 
 func (rc *RDBConfig) SetDefaults(v *viper.Viper) {
-	v.SetDefault(POSTGRES_ADDRESS_KEY, "postgres")
-	v.SetDefault(POSTGRES_PORT_KEY, 5432)
-	v.SetDefault(POSTGRES_DB_NAME_KEY, "keycloak")
-	v.SetDefault(POSTGRES_LOGIN_KEY, nil)
-	v.SetDefault(POSTGRES_PASSWORD_KEY, nil)
+	v.SetDefault(postgresAddressKey, postgresDefaultAddress)
+	v.SetDefault(postgresPortKey, postgresDefaultPort)
+	v.SetDefault(postgresDBNameKey, postgresDBNameKey)
+	v.SetDefault(postgresLoginKey, nil)
+	v.SetDefault(postgresPasswordKey, nil)
+	v.SetDefault(postgresRequestsPathKey, postgresDefaultRequestsPath)
 
-	v.SetDefault(POSTGRES_CONN_TIMEOUT_KEY, 10*time.Second)
-	v.SetDefault(POSTGRES_MIN_CONNS_KEY, 5)
-	v.SetDefault(POSTGRES_MAX_CONNS_KEY, 20)
-	v.SetDefault(POSTGRES_MAX_CONN_LIFETIME_KEY, time.Hour)
-	v.SetDefault(POSTGRES_MAX_CONN_IDLE_TIME_KEY, 30*time.Minute)
-	v.SetDefault(POSTGRES_HEALTHCHECK_PERIOD_KEY, time.Minute)
-	v.SetDefault(HTTPC_REQUEST_TIMEOUT_KEY, 30*time.Second)
+	v.SetDefault(postgresConnTimeoutKey, postgresDefaultConnTimeout)
+	v.SetDefault(postgresMinConnsKey, postgresDefaultMinConns)
+	v.SetDefault(postgresMaxConnsKey, postgresDefaultMaxConns)
+	v.SetDefault(postgresMaxConnLifetimeKey, postgresDefaultMaxConnLifetime)
+	v.SetDefault(postgresMaxConnIdleTimeKey, postgresDefaultMaxConnIdleTime)
+	v.SetDefault(postgresHealthCheckPeriodKey, postgresDefaultHealthCheckPeriod)
+	v.SetDefault(postgresRequestTimeoutKey, postgresDefaultRequestTimeout)
 }
 
 func (rc *RDBConfig) Load(v *viper.Viper) {
-	rc.Address = v.GetString(POSTGRES_ADDRESS_KEY)
-	rc.Port = v.GetUint(POSTGRES_PORT_KEY)
-	rc.DBName = v.GetString(POSTGRES_DB_NAME_KEY)
-	rc.Login = v.GetString(POSTGRES_LOGIN_KEY)
-	rc.Password = v.GetString(POSTGRES_PASSWORD_KEY)
+	rc.Address = v.GetString(postgresAddressKey)
+	rc.Port = v.GetUint(postgresPortKey)
+	rc.DBName = v.GetString(postgresDBNameKey)
+	rc.Login = v.GetString(postgresLoginKey)
+	rc.Password = v.GetString(postgresPasswordKey)
+	rc.RequestsPath = v.GetString(postgresRequestsPathKey)
 
-	rc.ConnTimeout = v.GetDuration(POSTGRES_CONN_TIMEOUT_KEY)
-	rc.MinConns = v.GetInt(POSTGRES_MIN_CONNS_KEY)
-	rc.MaxConns = v.GetInt(POSTGRES_MAX_CONNS_KEY)
-	rc.MaxConnLifetime = v.GetDuration(POSTGRES_MAX_CONN_LIFETIME_KEY)
-	rc.MaxConnIdleTime = v.GetDuration(POSTGRES_MAX_CONN_IDLE_TIME_KEY)
-	rc.HealthCheckPeriod = v.GetDuration(POSTGRES_HEALTHCHECK_PERIOD_KEY)
-	rc.RequestTimeout = v.GetDuration(HTTPC_REQUEST_TIMEOUT_KEY)
+	rc.ConnTimeout = v.GetDuration(postgresConnTimeoutKey)
+	rc.MinConns = v.GetInt32(postgresMinConnsKey)
+	rc.MaxConns = v.GetInt32(postgresMaxConnsKey)
+	rc.MaxConnLifetime = v.GetDuration(postgresMaxConnLifetimeKey)
+	rc.MaxConnIdleTime = v.GetDuration(postgresMaxConnIdleTimeKey)
+	rc.HealthCheckPeriod = v.GetDuration(postgresHealthCheckPeriodKey)
+	rc.RequestTimeout = v.GetDuration(clientHTTPRequestTimeoutKey)
 }
 
 func (rc *RedisConfig) SetDefaults(v *viper.Viper) {
-	v.SetDefault(REDIS_ADDRESS_KEY, "redis")
-	v.SetDefault(REDIS_PORT_KEY, 6379)
-	v.SetDefault(REDIS_PASSWORD_KEY, nil)
-	v.SetDefault(REDIS_REQUEST_TIMEOUT_KEY, 10*time.Second)
+	v.SetDefault(RedisAddressKey, RedisDefaultAddress)
+	v.SetDefault(RedisPortKey, RedisDefaultPort)
+	v.SetDefault(RedisPasswordKey, nil)
+	v.SetDefault(RedisRequestTimeoutKey, RedisDefaultRequestTimeout)
 }
 
 func (rc *RedisConfig) Load(v *viper.Viper) {
-	rc.Address = v.GetString(REDIS_ADDRESS_KEY)
-	rc.Port = v.GetUint(REDIS_PORT_KEY)
-	rc.Password = v.GetString(REDIS_PASSWORD_KEY)
-	rc.RequestTimeout = v.GetDuration(REDIS_REQUEST_TIMEOUT_KEY)
+	rc.Address = v.GetString(RedisAddressKey)
+	rc.Port = v.GetInt(RedisPortKey)
+	rc.Password = v.GetString(RedisPasswordKey)
+	rc.RequestTimeout = v.GetDuration(RedisRequestTimeoutKey)
 }

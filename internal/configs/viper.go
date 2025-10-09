@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -26,8 +27,9 @@ func Load(path string, v *viper.Viper, configs ...configurable) error {
 	err := v.MergeInConfig()
 
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			slog.Error("Config file not found: %s", path)
+		var vErr viper.ConfigFileNotFoundError
+		if errors.As(err, &vErr) {
+			slog.Error("Config file not found yaml")
 			return nil
 		}
 		return fmt.Errorf("failed to merge config: %w", err)
@@ -40,9 +42,27 @@ func Load(path string, v *viper.Viper, configs ...configurable) error {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	// creds := &viper.RemoteCredentials{
+	// 	AuthType: "userpass",
+	// 	Login: "dunkelheit",
+	// 	Password: "dunkelheit",
+	// }
+	// err = v.AddRemoteProvider("vault", "http://192.168.80.3:8200", "sample/zizipabeda:sample", creds)
+
+	// if err != nil {
+	// 	return fmt.Errorf("Error adding remote provider %s", err)
+	// }
+
+	// err = v.ReadRemoteConfig()
+
+	// if err != nil {
+	// 	return fmt.Errorf("Error reading remote config: %s", err)
+	// }
+
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			slog.Error("Config file not found: %s", path)
+		var vErr viper.ConfigFileNotFoundError
+		if errors.As(err, &vErr) {
+			slog.Error("Config file not found env")
 			return nil
 		}
 		return fmt.Errorf("failed to merge config: %w", err)

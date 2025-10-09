@@ -9,20 +9,29 @@ import (
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
-type AuthUsecase interface {
-	GetAuthLink(retunUrl string) (string, error)
+type usecase interface {
+	GetAuthLink(retunURL string) (string, error)
 	GetToken(state string, token string) (model.TokenDTO, error)
 	GetLogoutLink() string
 }
 
-type AuthHandler struct {
+type Handler struct {
 	basicReturnURL string
 	requiredPrefix string
-	authUsecase    AuthUsecase
+	authUsecase    usecase
+}
+
+func NewAuthHandler(basicReturnURL string, requiredPrefix string, authUsecase usecase) *Handler {
+	return &Handler{
+		basicReturnURL: basicReturnURL,
+		requiredPrefix: requiredPrefix,
+		authUsecase:    authUsecase,
+	}
 }
 
 // HandleAuth godoc
@@ -33,24 +42,24 @@ type AuthHandler struct {
 // @Success 301
 // @Failure 400
 // @Failure 500
-// @Router /openid-connect/auth [get]
-func (ah *AuthHandler) handleAuth(ctx *fasthttp.RequestCtx) {
-	returnUrl := ctx.QueryArgs().Peek("return_url")
-	var returnUrlString string
-	if returnUrl == nil {
+// @Router /openid-connect/auth [get].
+func (ah *Handler) handleAuth(ctx *fasthttp.RequestCtx) {
+	returnURL := ctx.QueryArgs().Peek("return_url")
+	var returnURLString string
+	if returnURL == nil {
 		slog.Warn("Return url is empty")
-		returnUrlString = ah.basicReturnURL
+		returnURLString = ah.basicReturnURL
 	} else {
-		returnUrlString = string(returnUrl)
+		returnURLString = string(returnURL)
 	}
 
-	if !strings.HasPrefix(returnUrlString, ah.requiredPrefix) {
-		slog.Warn(fmt.Sprintf("Return url %v is not allowed", returnUrlString))
+	if !strings.HasPrefix(returnURLString, ah.requiredPrefix) {
+		slog.Warn(fmt.Sprintf("Return url %v is not allowed", returnURLString))
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
 
-	redirectLink, err := ah.authUsecase.GetAuthLink(returnUrlString)
+	redirectLink, err := ah.authUsecase.GetAuthLink(returnURLString)
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unknown error while getting auth link %v", err))
@@ -70,8 +79,8 @@ func (ah *AuthHandler) handleAuth(ctx *fasthttp.RequestCtx) {
 // @Success 301
 // @Failure 400
 // @Failure 500
-// @Router /openid-connect/token [get]
-func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
+// @Router /openid-connect/token [get].
+func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	state := ctx.QueryArgs().Peek("state")
 
 	if state == nil {
@@ -91,7 +100,7 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	tokenDTO, err := ah.authUsecase.GetToken(string(state), string(code))
 
 	if err != nil {
-		if errors.As(err, &errorvals.ObjectNotFoundInRepoError) {
+		if errors.Is(err, errorvals.ErrObjectNotFoundInRepoError) {
 			slog.Warn(fmt.Sprintf("State not found for request-id %s",
 				slog.Any("requestId", ctx.Request.Header.Peek("X-Request-Id"))))
 			ctx.SetStatusCode(fasthttp.StatusRequestTimeout)
@@ -103,14 +112,14 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	}
 
 	atCookie := fasthttp.Cookie{}
-	atCookie.SetKey("at")
+	atCookie.SetKey(consts.ATCookieKey)
 	atCookie.SetValue(tokenDTO.AccessToken)
 	atCookie.SetMaxAge(tokenDTO.ExpiresIn)
 	atCookie.SetHTTPOnly(true)
 	atCookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
 
 	rtCookie := fasthttp.Cookie{}
-	rtCookie.SetKey("rt")
+	rtCookie.SetKey(consts.RTCookieKey)
 	rtCookie.SetValue(tokenDTO.RefreshToken)
 	rtCookie.SetMaxAge(tokenDTO.RefreshExp)
 	rtCookie.SetHTTPOnly(true)
@@ -122,20 +131,12 @@ func (ah *AuthHandler) handleToken(ctx *fasthttp.RequestCtx) {
 	ctx.Redirect(tokenDTO.ReturnURL, fasthttp.StatusFound)
 }
 
-func (ah *AuthHandler) HandleLogout(ctx *fasthttp.RequestCtx) {
+func (ah *Handler) HandleLogout(ctx *fasthttp.RequestCtx) {
 	ctx.Redirect(ah.authUsecase.GetLogoutLink(), fasthttp.StatusFound)
 }
 
-func (ah *AuthHandler) RegisterRoutes(apiGroup *router.Group) {
+func (ah *Handler) RegisterRoutes(apiGroup *router.Group) {
 	group := apiGroup.Group("/openid-connect")
 	group.GET("/auth", ah.handleAuth)
 	group.GET("/token", ah.handleToken)
-}
-
-func NewAuthHandler(basicReturnURL string, requiredPrefix string, authUsecase AuthUsecase) *AuthHandler {
-	return &AuthHandler{
-		basicReturnURL: basicReturnURL,
-		requiredPrefix: requiredPrefix,
-		authUsecase:    authUsecase,
-	}
 }

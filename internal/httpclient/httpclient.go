@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,7 +13,16 @@ import (
 	"time"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/metrics"
+)
+
+const (
+	HTTPHeaderContentType           = "Content-Type"
+	HTTPHeaderContentTypeURLEncoded = "application/x-www-form-urlencoded"
+	HTTPHeaderAuthorization         = "Authorization"
+	HTTPAuthorizationPrefix         = "Bearer "
+	HTTPPathDelimeter               = "/"
 )
 
 type HTTPClient struct {
@@ -23,7 +32,14 @@ type HTTPClient struct {
 	metrics  *metrics.HTTPRequestMetrics
 }
 
-func NewWithRetry(endpoint string, config configs.HTTPClientConfig, reqMetrics *metrics.HTTPRequestMetrics) *HTTPClient {
+type HTTPRequestParams struct {
+	body      string
+	token     string
+	pathParam string
+}
+
+func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
+	reqMetrics *metrics.HTTPRequestMetrics) *HTTPClient {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -44,66 +60,110 @@ func NewWithRetry(endpoint string, config configs.HTTPClientConfig, reqMetrics *
 }
 
 func (hc *HTTPClient) observeStatusCode(code int) {
-	if code <= http.StatusBadRequest {
+	switch {
+	case code <= http.StatusBadRequest:
 		hc.metrics.RequestOks.Inc()
-	} else if code <= http.StatusInternalServerError {
+	case code <= http.StatusInternalServerError:
 		hc.metrics.RequestBads.Inc()
-	} else {
+	default:
 		hc.metrics.RequestServErrs.Inc()
 	}
 }
 
 func (hc *HTTPClient) PostForm(ctx context.Context, form url.Values) (*http.Response, error) {
 	encoded := form.Encode()
+	return hc.makeRequest(ctx, http.MethodPost, HTTPRequestParams{body: encoded})
+}
 
+func (hc *HTTPClient) Get(ctx context.Context, token string) (*http.Response, error) {
+	return hc.makeRequest(ctx, http.MethodGet, HTTPRequestParams{token: token})
+}
+
+func (hc *HTTPClient) Delete(ctx context.Context, token string, id string) (*http.Response, error) {
+	return hc.makeRequest(ctx, http.MethodDelete, HTTPRequestParams{token: token, pathParam: id})
+}
+
+func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
+	params HTTPRequestParams) (*http.Response, error) {
 	var lastErr error
 	var resp *http.Response
 
 	for attempt := 1; attempt <= hc.retries.MaxAttempts; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, hc.endpoint, strings.NewReader(encoded))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.ContentLength = int64(len(encoded))
-
-		reqStart := time.Now().UnixMilli()
-		resp, err = hc.c.Do(req)
-		reqEnd := time.Now().UnixMilli()
-
-		hc.metrics.RequestDurations.Observe(float64(reqEnd - reqStart))
-
-		if err == nil {
-			hc.observeStatusCode(resp.StatusCode)
-			if !hc.shouldRetryStatus(resp.StatusCode) {
-				return resp, nil
-			}
-			drainAndClose(resp.Body)
-
-			if attempt < hc.retries.MaxAttempts {
-				if err = sleepOrCtx(ctx, hc.backoffDelay(attempt)); err != nil {
-					return nil, err
-				}
-			}
-			lastErr = fmt.Errorf("retryable HTTP status %d", resp.StatusCode)
-			continue
-		} else {
-			hc.observeStatusCode(http.StatusBadRequest)
+		resp, lastErr = hc.executeRequestAttempt(ctx, method, params)
+		if resp != nil || !hc.shouldRetry(lastErr, resp, attempt) {
+			break
 		}
 
-		if !hc.shouldRetryError(err) || attempt == hc.retries.MaxAttempts {
-			return nil, err
-		}
-		lastErr = err
-		if err = sleepOrCtx(ctx, hc.backoffDelay(attempt)); err != nil {
+		if err := sleepOrCtx(ctx, hc.backoffDelay(attempt)); err != nil {
 			return nil, err
 		}
 	}
 
-	if resp != nil {
-		return resp, lastErr
+	return resp, lastErr
+}
+
+func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
+	params HTTPRequestParams) (*http.Response, error) {
+	req, err := hc.createRequest(ctx, method, params)
+	if err != nil {
+		return nil, err
 	}
-	return nil, lastErr
+
+	reqStart := time.Now().UnixMilli()
+	resp, err := hc.c.Do(req)
+	reqEnd := time.Now().UnixMilli()
+
+	hc.metrics.RequestDurations.Observe(float64(reqEnd - reqStart))
+	hc.observeRequestStatus(resp, err)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if hc.shouldRetryStatus(resp.StatusCode) {
+		drainAndClose(resp.Body)
+		return resp, fmt.Errorf("retryable HTTP status %d", resp.StatusCode)
+	}
+
+	return resp, nil
+}
+
+func (hc *HTTPClient) createRequest(ctx context.Context, method string,
+	params HTTPRequestParams) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method,
+		fmt.Sprintf("%s%s%s", hc.endpoint, HTTPPathDelimeter, params.pathParam),
+		strings.NewReader(params.body))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeURLEncoded)
+	if params.token != consts.EmptyString {
+		req.Header.Set(HTTPHeaderAuthorization, fmt.Sprintf("%s%s", HTTPAuthorizationPrefix, params.token))
+	}
+	req.ContentLength = int64(len(params.body))
+
+	return req, nil
+}
+
+func (hc *HTTPClient) observeRequestStatus(resp *http.Response, err error) {
+	if err != nil {
+		hc.observeStatusCode(http.StatusBadRequest)
+	} else if resp != nil {
+		hc.observeStatusCode(resp.StatusCode)
+	}
+}
+
+func (hc *HTTPClient) shouldRetry(err error, resp *http.Response, attempt int) bool {
+	if attempt >= hc.retries.MaxAttempts {
+		return false
+	}
+
+	if err != nil {
+		return hc.shouldRetryError(err)
+	}
+
+	return resp != nil && hc.shouldRetryStatus(resp.StatusCode)
 }
 
 func (hc *HTTPClient) shouldRetryStatus(code int) bool {
@@ -129,7 +189,11 @@ func (hc *HTTPClient) backoffDelay(attempt int) time.Duration {
 	}
 	// джиттер ~±20%
 	jitterFrac := 0.2
-	j := time.Duration(float64(d) * (rand.Float64()*2*jitterFrac - jitterFrac))
+
+	// Здесь нам не нужен крипторандом, так как мы не нуждаемся в криптостойкости результата
+	// В свою очередь, криптографический рандом использует системные вызовы, так как зависит от некоторых
+	// параметров системы и компьютера (тепловой шум процессора, i/o активность, номера дисков и прочее)
+	j := time.Duration(float64(d) * (rand.Float64()*2*jitterFrac - jitterFrac)) //nolint:gosec // см выше ^
 	return d + j
 }
 
@@ -137,8 +201,8 @@ func drainAndClose(body io.ReadCloser) {
 	if body == nil {
 		return
 	}
-	io.Copy(io.Discard, body) //nolint:errcheck
-	body.Close()
+	_, _ = io.Copy(io.Discard, body)
+	_ = body.Close()
 }
 
 func sleepOrCtx(ctx context.Context, d time.Duration) error {

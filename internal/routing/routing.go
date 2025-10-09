@@ -20,7 +20,7 @@ func NewRouter() *Router {
 	}
 }
 
-func (rr *Router) NewApiGroup(basePath string, version string, handlers ...HTTPHandler) {
+func (rr *Router) NewAPIGroup(basePath string, version string, handlers ...HTTPHandler) {
 	apiGroup := rr.rtr.Group("/api/v" + version + basePath)
 
 	for _, handler := range handlers {

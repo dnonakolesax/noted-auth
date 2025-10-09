@@ -5,18 +5,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/dnonakolesax/noted-auth/internal/configs"
 )
 
-type RedisClient struct {
-	Client *redis.Client
+type Client struct {
+	Client  *redis.Client
 	Timeout time.Duration
 }
 
-func NewClient(cfg configs.RedisConfig) (*RedisClient, error) {
+func NewClient(cfg configs.RedisConfig) (*Client, error) {
 	options := &redis.Options{
-		Addr:     cfg.Address + ":" + strconv.Itoa(int(cfg.Port)),
+		Addr:     cfg.Address + ":" + strconv.Itoa(cfg.Port),
 		Password: cfg.Password,
 		DB:       0,
 	}
@@ -31,8 +32,8 @@ func NewClient(cfg configs.RedisConfig) (*RedisClient, error) {
 		return nil, err
 	}
 
-	return &RedisClient{
-		Client: client,
+	return &Client{
+		Client:  client,
 		Timeout: cfg.RequestTimeout,
 	}, nil
 }

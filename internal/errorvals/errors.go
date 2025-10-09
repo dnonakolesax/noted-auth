@@ -4,4 +4,4 @@ import (
 	"errors"
 )
 
-var ObjectNotFoundInRepoError = errors.New("Object not found in repo")
+var ErrObjectNotFoundInRepoError = errors.New("object not found in repo")

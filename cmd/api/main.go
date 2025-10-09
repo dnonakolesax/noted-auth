@@ -50,20 +50,8 @@ import (
 // @contact.email bg@dnk33.com
 
 // @host oauth.dnk33.com
-// @BasePath /api/v1/iam
+// @BasePath /api/v1/iam.
 func main() {
-	/************************************************/
-	/*                PANIC CATCHER                 */
-	/************************************************/
-
-	defer func() {
-		err := recover()
-
-		if err != nil {
-			slog.Error("Panic caught in main: ", slog.Any("Error", err))
-		}
-	}()
-
 	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
@@ -80,7 +68,8 @@ func main() {
 	httpClientConfig := configs.HTTPClientConfig{}
 	loggerConfig := configs.LoggerConfig{}
 
-	err := configs.Load("./configs/", v, &kcConfig, &psqlConfig, &redisConfig, &appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
+	err := configs.Load("./configs/", v, &kcConfig, &psqlConfig, &redisConfig,
+		&appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error loading config: %v", err))
@@ -97,7 +86,9 @@ func main() {
 	/*               SQL DB CONNECTION              */
 	/************************************************/
 
+	slog.Info("Starting SQL DB connection")
 	psqlConn, err := dbsql.NewPGXConn(psqlConfig)
+	slog.Info("SQL DB connection established")
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error connecting to database: %v", err))
@@ -116,7 +107,9 @@ func main() {
 	/*              REDIS DB CONNECTION             */
 	/************************************************/
 
+	slog.Info("Starting REDIS DB connection")
 	redisClient, err := dbredis.NewClient(redisConfig)
+	slog.Info("REDIS DB connection established")
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error connecting to redis: %v", err))
@@ -162,11 +155,12 @@ func main() {
 	/************************************************/
 
 	stateRepository := stateRepo.NewRedisStateRepo(redisClient)
-	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmId)
+	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmID, psqlConfig.RequestsPath)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error creating user repository: %v", err))
-		return
+		problem := fmt.Sprintf("Error creating user repository: %v", err)
+		slog.Error(problem)
+		panic(problem)
 	}
 
 	/************************************************/
@@ -190,7 +184,7 @@ func main() {
 	router := routing.NewRouter()
 	p := fasthttpprom.NewPrometheus("")
 	p.Use(router.Router())
-	router.NewApiGroup(appConfig.BasePath, "1", authHandler, userHandler)
+	router.NewAPIGroup(appConfig.BasePath, "1", authHandler, userHandler)
 
 	/************************************************/
 	/*               GRPC SERVER START              */
@@ -204,7 +198,7 @@ func main() {
 	}
 
 	grpcSrv := grpc.NewServer()
-	userProto.RegisterUserServiceServer(grpcSrv, userDelivery.NewUserService(userUsecase))
+	userProto.RegisterUserServiceServer(grpcSrv, userDelivery.NewUserServer(userUsecase))
 
 	go func() {
 		slog.Info("Starting GRPC server", slog.Int("Port", int(appConfig.GRPCPort)))

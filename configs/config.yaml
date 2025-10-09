@@ -21,6 +21,7 @@ postgres:
   max-conn-idle-time: 30m # Максимальное время бездействия
   healthcheck-period: 1m # Период проверки состояния соединения
   request-timeout: 30s # Таймаут на выполнение запроса
+  requests-path: "./db/requests/"
 
 redis:
   address: gobddocker-redis-1

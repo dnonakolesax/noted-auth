@@ -2,58 +2,63 @@ package repo
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	dbsql "github.com/dnonakolesax/noted-auth/internal/db/sql"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
+const thisDomainName = "user"
+
+const (
+	getUserFileName = "get_user"
+)
+
 type UserRepo struct {
 	worker  *dbsql.PGXWorker
-	realmId string
+	realmID string
 }
 
-func (ur *UserRepo) GetUser(userId string) (user model.User, funcErr error) {
-	result, err := ur.worker.Query(context.TODO(), ur.worker.Requests["get_user"], userId, ur.realmId)
+func NewUserRepo(worker *dbsql.PGXWorker, realmID string, requestsPath string) (*UserRepo, error) {
+	userRequests, err := dbsql.LoadSQLRequests(requestsPath + thisDomainName)
 
-	defer func() {
-		err := result.Close()
-		if err != nil {
-			funcErr = err
-		}
-	}()
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range userRequests {
+		worker.Requests[key] = value
+	}
+
+	return &UserRepo{
+		worker:  worker,
+		realmID: realmID,
+	}, nil
+}
+
+func (ur *UserRepo) GetUser(userID string) (model.User, error) {
+	result, err := ur.worker.Query(context.TODO(), ur.worker.Requests[getUserFileName], userID, ur.realmID)
 
 	if err != nil {
 		return model.User{}, err
 	}
 
 	if !result.Next() {
-		return model.User{}, fmt.Errorf("not found")
+		return model.User{}, errors.New("not found")
 	}
+	var user model.User
 	err = result.Scan(&user.Login, &user.FirstName, &user.LastName)
 	if err != nil {
 		return model.User{}, err
 	}
 
 	if result.Next() {
-		return model.User{}, fmt.Errorf("too many rows")
+		return model.User{}, errors.New("too many rows")
 	}
-	return
-}
 
-func NewUserRepo(worker *dbsql.PGXWorker, realmId string) (*UserRepo, error) {
-	UserRequests, err := dbsql.LoadSQLRequests("./internal/repo/user/sql_requests")
-
+	err = result.Close()
 	if err != nil {
-		return nil, err
+		return model.User{}, err
 	}
-
-	for key, value := range UserRequests {
-		worker.Requests[key] = value
-	}
-
-	return &UserRepo{
-		worker:  worker,
-		realmId: realmId,
-	}, nil
+	return user, nil
 }

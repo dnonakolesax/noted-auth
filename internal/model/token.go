@@ -9,5 +9,5 @@ type TokenDTO struct {
 	NotBeforePolicy int    `json:"not-before-policy"`
 	SessionState    string `json:"session_state"`
 	Scope           string `json:"scope"`
-	ReturnURL       string
+	ReturnURL       string `json:"return_url"`
 }
