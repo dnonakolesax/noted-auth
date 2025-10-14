@@ -2,29 +2,39 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
 )
 
 type Server struct {
 	proto.UnimplementedUserServiceServer
 
+	logger      *slog.Logger
 	userUsecase usecase
 }
 
-func NewUserServer(userUsecase usecase) *Server {
+func NewUserServer(userUsecase usecase, logger *slog.Logger) *Server {
 	return &Server{
 		userUsecase: userUsecase,
+		logger:      logger,
 	}
 }
 
 func (us *Server) GetUserCtx(ctx context.Context, req *proto.UserId) (*proto.UserInfo, error) {
-	user, err := us.userUsecase.Get(req.GetUuid())
+	traceID, ok := ctx.Value("ReqId").(string)
+
+	if !ok {
+		us.logger.ErrorContext(ctx, "Couldn't cast trace id to string")
+	}
+
+	trace := slog.String(consts.TraceLoggerKey, traceID)
+	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
+	user, err := us.userUsecase.Get(contex, req.GetUuid())
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error getting user: %v, id: %s", err, ctx.Value("ReqId")))
+		us.logger.ErrorContext(ctx, "Error getting user")
 		return nil, err
 	}
 

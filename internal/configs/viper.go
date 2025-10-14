@@ -14,7 +14,7 @@ type configurable interface {
 	Load(v *viper.Viper)
 }
 
-func Load(path string, v *viper.Viper, configs ...configurable) error {
+func Load(path string, v *viper.Viper, logger *slog.Logger, configs ...configurable) error {
 	for _, cfg := range configs {
 		cfg.SetDefaults(v)
 	}
@@ -29,7 +29,7 @@ func Load(path string, v *viper.Viper, configs ...configurable) error {
 	if err != nil {
 		var vErr viper.ConfigFileNotFoundError
 		if errors.As(err, &vErr) {
-			slog.Error("Config file not found yaml")
+			logger.Error("Config file not found yaml")
 			return nil
 		}
 		return fmt.Errorf("failed to merge config: %w", err)
@@ -62,7 +62,7 @@ func Load(path string, v *viper.Viper, configs ...configurable) error {
 	if err != nil {
 		var vErr viper.ConfigFileNotFoundError
 		if errors.As(err, &vErr) {
-			slog.Error("Config file not found env")
+			logger.Error("Config file not found env")
 			return nil
 		}
 		return fmt.Errorf("failed to merge config: %w", err)

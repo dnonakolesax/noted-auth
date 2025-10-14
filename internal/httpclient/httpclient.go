@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ type HTTPClient struct {
 	endpoint string
 	retries  configs.HTTPRetryPolicyConfig
 	metrics  *metrics.HTTPRequestMetrics
+	logger   *slog.Logger
 }
 
 type HTTPRequestParams struct {
@@ -39,7 +41,7 @@ type HTTPRequestParams struct {
 }
 
 func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
-	reqMetrics *metrics.HTTPRequestMetrics) *HTTPClient {
+	reqMetrics *metrics.HTTPRequestMetrics, logger *slog.Logger) *HTTPClient {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -56,6 +58,7 @@ func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
 		endpoint: endpoint,
 		retries:  config.RetryPolicy,
 		metrics:  reqMetrics,
+		logger:   logger,
 	}
 }
 
@@ -110,18 +113,22 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	}
 
 	reqStart := time.Now().UnixMilli()
+	hc.logger.InfoContext(ctx, "Executing request", "method", method)
 	resp, err := hc.c.Do(req)
 	reqEnd := time.Now().UnixMilli()
+	hc.logger.InfoContext(ctx, "Executed request", "time", reqEnd-reqStart, "method", method)
 
 	hc.metrics.RequestDurations.Observe(float64(reqEnd - reqStart))
 	hc.observeRequestStatus(resp, err)
 
 	if err != nil {
+		hc.logger.ErrorContext(ctx, "Error executing http-request", "error", err.Error(), "method", method)
 		return nil, err
 	}
 
 	if hc.shouldRetryStatus(resp.StatusCode) {
 		drainAndClose(resp.Body)
+		hc.logger.InfoContext(ctx, "Should retry request", "method", method, "Code", resp.StatusCode)
 		return resp, fmt.Errorf("retryable HTTP status %d", resp.StatusCode)
 	}
 
@@ -134,6 +141,7 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 		fmt.Sprintf("%s%s%s", hc.endpoint, HTTPPathDelimeter, params.pathParam),
 		strings.NewReader(params.body))
 	if err != nil {
+		hc.logger.ErrorContext(ctx, "Error creating http-request", "error", err.Error())
 		return nil, err
 	}
 

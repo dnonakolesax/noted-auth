@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
@@ -30,6 +31,7 @@ import (
 	"github.com/dnonakolesax/noted-auth/internal/usecase"
 
 	authDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1"
+	sessionDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/session/v1"
 	userDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1"
 
 	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
@@ -51,7 +53,8 @@ import (
 
 // @host oauth.dnk33.com
 // @BasePath /api/v1/iam.
-func main() {
+func main() { //nolint:funlen // TODO: refactor
+	initLogger := logger.NewLogger("info", true, "init")
 	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
@@ -68,30 +71,29 @@ func main() {
 	httpClientConfig := configs.HTTPClientConfig{}
 	loggerConfig := configs.LoggerConfig{}
 
-	err := configs.Load("./configs/", v, &kcConfig, &psqlConfig, &redisConfig,
+	err := configs.Load("./configs/", v, initLogger, &kcConfig, &psqlConfig, &redisConfig,
 		&appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error loading config: %v", err))
+		initLogger.ErrorContext(context.Background(), fmt.Sprintf("Error loading config: %v", err))
 		return
 	}
 	/************************************************/
 	/*                 LOGGER SETUP                 */
 	/************************************************/
 
-	appLogger := logger.NewLogger(loggerConfig.LogLevel, loggerConfig.LogAddSource)
-	slog.SetDefault(appLogger)
+	appLoggers := logger.SetupLoggers(loggerConfig.LogLevel, loggerConfig.LogAddSource)
 
 	/************************************************/
 	/*               SQL DB CONNECTION              */
 	/************************************************/
 
-	slog.Info("Starting SQL DB connection")
-	psqlConn, err := dbsql.NewPGXConn(psqlConfig)
-	slog.Info("SQL DB connection established")
+	initLogger.InfoContext(context.Background(), "Starting SQL DB connection")
+	psqlConn, err := dbsql.NewPGXConn(psqlConfig, appLoggers.Infra)
+	initLogger.InfoContext(context.Background(), "SQL DB connection established")
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error connecting to database: %v", err))
+		initLogger.ErrorContext(context.Background(), "Error connecting to database", slog.String("error", err.Error()))
 		return
 	}
 	defer psqlConn.Disconnect()
@@ -99,7 +101,7 @@ func main() {
 	psqlWorker, err := dbsql.NewPGXWorker(psqlConn)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error creating worker: %v", err))
+		initLogger.ErrorContext(context.Background(), "Error creating pgsql worker", slog.String("error", err.Error()))
 		return
 	}
 
@@ -107,15 +109,21 @@ func main() {
 	/*              REDIS DB CONNECTION             */
 	/************************************************/
 
-	slog.Info("Starting REDIS DB connection")
-	redisClient, err := dbredis.NewClient(redisConfig)
-	slog.Info("REDIS DB connection established")
+	initLogger.InfoContext(context.Background(), "Starting REDIS DB connection")
+	redisClient, err := dbredis.NewClient(redisConfig, appLoggers.Infra)
+	initLogger.InfoContext(context.Background(), "REDIS DB connection established")
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error connecting to redis: %v", err))
+		initLogger.ErrorContext(context.Background(), "Error connecting to redis", slog.String("error", err.Error()))
 		return
 	}
 	defer redisClient.Client.Close()
+
+	/************************************************/
+	/*               SHUTDOWN WG SETUP              */
+	/************************************************/
+
+	wg := &sync.WaitGroup{}
 
 	/************************************************/
 	/*                METRICS SETUP                 */
@@ -131,14 +139,17 @@ func main() {
 	tokenRequestMetrics := metrics.NewHTTPRequestMetrics(reg, "keycloak_token_post")
 
 	metricsServer := &http.Server{
-		Handler: promhttp.Handler(),
-		Addr:    ":" + strconv.Itoa(int(appConfig.MetricsPort)),
+		Handler:           promhttp.Handler(),
+		Addr:              ":" + strconv.Itoa(appConfig.MetricsPort),
+		ReadHeaderTimeout: serverConfig.ReadTimeout,
 	}
 
+	wg.Add(1)
 	go func() {
-		slog.Info("Starting metrics server", slog.Int("Port", int(appConfig.MetricsPort)))
-		err := metricsServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
+		defer wg.Done()
+		slog.Info("Starting metrics server", slog.Int("Port", appConfig.MetricsPort))
+		msErr := metricsServer.ListenAndServe()
+		if msErr != nil && msErr != http.ErrServerClosed {
 			slog.Error(fmt.Sprintf("Error starting metrics server: %v", err))
 			panic(err)
 		}
@@ -148,34 +159,40 @@ func main() {
 	/*              HTTP CLIENT SETUP               */
 	/************************************************/
 
-	httpClient := httpclient.NewWithRetry(kcConfig.InterRealmAddress+kcConfig.TokenEndpoint, httpClientConfig, tokenRequestMetrics)
+	httpClient := httpclient.NewWithRetry(kcConfig.InterRealmAddress+kcConfig.TokenEndpoint,
+		httpClientConfig, tokenRequestMetrics, appLoggers.HTTPc)
 
 	/************************************************/
 	/*                  REPOS INIT                  */
 	/************************************************/
 
-	stateRepository := stateRepo.NewRedisStateRepo(redisClient)
-	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmID, psqlConfig.RequestsPath)
+	stateRepository := stateRepo.NewRedisStateRepo(redisClient, appLoggers.Repo)
+	// TODO: add state in-memory repo
+	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmID, psqlConfig.RequestsPath, appLoggers.Repo)
 
 	if err != nil {
-		problem := fmt.Sprintf("Error creating user repository: %v", err)
-		slog.Error(problem)
-		panic(problem)
+		initLogger.ErrorContext(context.Background(), "Error creating user repository",
+			slog.String("error", err.Error()))
+		panic(fmt.Errorf("error creating user repository %s", err.Error()))
 	}
 
 	/************************************************/
 	/*                USECASES INIT                 */
 	/************************************************/
 
-	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, httpClient)
-	userUsecase := usecase.NewUserUsecase(userRepository)
+	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, httpClient,
+		appLoggers.Service)
+	userUsecase := usecase.NewUserUsecase(userRepository, appLoggers.Service)
+	sessionUsecase := usecase.NewSessionUsecase(httpClient, appLoggers.Service)
 
 	/************************************************/
 	/*              REST HANDLERS INIT              */
 	/************************************************/
 
-	authHandler := authDelivery.NewAuthHandler(appConfig.AllowedRedirect, appConfig.AllowedRedirect, stateUsecase)
-	userHandler := userDelivery.NewUserHandler(userUsecase)
+	authHandler := authDelivery.NewAuthHandler(appConfig.AllowedRedirect, appConfig.AllowedRedirect,
+		stateUsecase, appLoggers.HTTP)
+	userHandler := userDelivery.NewUserHandler(userUsecase, appLoggers.HTTP)
+	sessionHandler := sessionDelivery.NewSessionHandler(sessionUsecase, appLoggers.HTTP)
 
 	/************************************************/
 	/*               HTTP ROUTER SETUP              */
@@ -184,25 +201,28 @@ func main() {
 	router := routing.NewRouter()
 	p := fasthttpprom.NewPrometheus("")
 	p.Use(router.Router())
-	router.NewAPIGroup(appConfig.BasePath, "1", authHandler, userHandler)
+	router.NewAPIGroup(appConfig.BasePath, "1", authHandler, userHandler, sessionHandler)
 
 	/************************************************/
 	/*               GRPC SERVER START              */
 	/************************************************/
 
-	listen, err := net.Listen("tcp", ":"+strconv.Itoa(int(appConfig.GRPCPort)))
+	cfg := net.ListenConfig{}
+	listener, err := cfg.Listen(context.Background(), "tcp", ":"+strconv.Itoa(appConfig.GRPCPort))
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error listening grpc net: %v", err))
-		panic(err)
+		initLogger.ErrorContext(context.Background(), "Error listening grpc net", slog.String("error", err.Error()))
+		panic(fmt.Sprintf("error listening grpc net: %v", err))
 	}
 
 	grpcSrv := grpc.NewServer()
-	userProto.RegisterUserServiceServer(grpcSrv, userDelivery.NewUserServer(userUsecase))
+	userProto.RegisterUserServiceServer(grpcSrv, userDelivery.NewUserServer(userUsecase, appLoggers.GRPC))
 
+	wg.Add(1)
 	go func() {
-		slog.Info("Starting GRPC server", slog.Int("Port", int(appConfig.GRPCPort)))
-		err = grpcSrv.Serve(listen)
+		defer wg.Done()
+		slog.Info("Starting GRPC server", slog.Int("Port", appConfig.GRPCPort))
+		err = grpcSrv.Serve(listener)
 
 		if err != nil {
 			slog.Error(fmt.Sprintf("Error starting grpc server: %v", err))
@@ -234,10 +254,12 @@ func main() {
 		TCPKeepalivePeriod: serverConfig.TCPKeepAlivePeriod,
 	}
 
+	wg.Add(1)
 	go func() {
-		slog.Info("Starting HTTP server", slog.Int("Port", int(appConfig.Port)))
-		err := srv.ListenAndServe(":" + strconv.Itoa(int(appConfig.Port)))
-		if err != nil {
+		defer wg.Done()
+		slog.Info("Starting HTTP server", slog.Int("Port", appConfig.Port))
+		httpErr := srv.ListenAndServe(":" + strconv.Itoa(appConfig.Port))
+		if httpErr != nil {
 			slog.Error(fmt.Sprintf("Couldn't start server: %v", err))
 		}
 	}()
@@ -246,10 +268,11 @@ func main() {
 	/*               HTTP SERVER STOP               */
 	/************************************************/
 	sig := <-quit
-	slog.Info(fmt.Sprintf("Received stop signal: %v", sig))
+	initLogger.InfoContext(context.Background(), "Received signal", slog.String("signal", sig.String()))
 	err = srv.Shutdown()
 	if err != nil {
-		slog.Error(fmt.Sprintf("Main HTTP shutdown returned err: %s \n", err))
+		initLogger.ErrorContext(context.Background(), "Main HTTP server shutdown error",
+			slog.String("error", err.Error()))
 	}
 
 	/************************************************/
@@ -267,6 +290,9 @@ func main() {
 	err = metricsServer.Shutdown(ctx)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Metrics HTTP shutdown returned err: %s \n", err))
+		initLogger.ErrorContext(context.Background(), "Metrics server shutdown error",
+			slog.String("error", err.Error()))
 	}
+
+	wg.Wait()
 }

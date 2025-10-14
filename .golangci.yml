@@ -105,6 +105,7 @@ linters:
     - recvcheck # checks for receiver type consistency
     - revive # fast, configurable, extensible, flexible, and beautiful linter for Go, drop-in replacement of golint
     - rowserrcheck # checks whether Err of rows is checked successfully
+    - sloglint # ensure consistent code style when using log/slog
     - spancheck # checks for mistakes with OpenTelemetry/Census spans
     - sqlclosecheck # checks that sql.Rows and sql.Stmt are closed
     - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
@@ -139,7 +140,6 @@ linters:
     #- zerologlint # detects the wrong usage of zerolog that a user forgets to dispatch zerolog.Event
 
     ## disabled
-    #- sloglint # ensure consistent code style when using log/slog
     #- containedctx # detects struct contained context.Context field
     #- contextcheck # [too many false positives] checks the function whether use a non-inherited context
     #- dogsled # checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())
@@ -442,7 +442,6 @@ linters:
     paths:
       - "docs/docs.go"
       - "cmd/swagger/main.go"
-      - "cmd/api/main.go"
       - ".*\\.pb\\.go$"
     # Predefined exclusion rules.
     # Default: []

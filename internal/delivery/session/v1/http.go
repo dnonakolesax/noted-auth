@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/fasthttp/router"
@@ -10,42 +11,46 @@ import (
 )
 
 type usecase interface {
-	Get(token string) ([]byte, error)
-	Delete(token string, id string) error
+	Get(ctx context.Context, token string) ([]byte, error)
+	Delete(ctx context.Context, token string, id string) error
 }
 
 type Handler struct {
 	SessionUsecase usecase
+	logger         *slog.Logger
 }
 
-func NewSessionHandler(sesionUsecase usecase) *Handler {
+func NewSessionHandler(sesionUsecase usecase, logger *slog.Logger) *Handler {
 	return &Handler{
 		SessionUsecase: sesionUsecase,
+		logger:         logger,
 	}
 }
 
 // Get godoc
 // @Summary Get all user sessions
 // @Description Returns all user's sessions
-// @Tags openid-connect
+// @Tags openid-connect injectable
 // @Produces json
 // @Success 200 {object} []model.Session
 // @Failure 400
 // @Failure 500
 // @Router /session [get].
 func (sh *Handler) Get(ctx *fasthttp.RequestCtx) {
+	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
+	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	token := ctx.Request.Header.Cookie(consts.ATCookieKey)
 
 	if token == nil {
-		slog.Warn("request sent without token")
+		sh.logger.WarnContext(contex, "request sent without token")
 		ctx.Response.SetStatusCode(fasthttp.StatusUnauthorized)
 		return
 	}
 
-	sessions, err := sh.SessionUsecase.Get(string(token))
+	sessions, err := sh.SessionUsecase.Get(contex, string(token))
 
 	if err != nil {
-		slog.Error("Error while getting sessions: ", "err", err.Error())
+		sh.logger.ErrorContext(contex, "Error while getting sessions: ", "err", err.Error())
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
@@ -58,17 +63,19 @@ func (sh *Handler) Get(ctx *fasthttp.RequestCtx) {
 // Delete godoc
 // @Summary Delete session
 // @Description Deletes session by id, or all session if id is not passed
-// @Tags openid-connect
+// @Tags openid-connect injectable
 // @Param id path string false "Session ID"
 // @Success 200
 // @Failure 400
 // @Failure 500
 // @Router /session/{id} [delete].
 func (sh *Handler) Delete(ctx *fasthttp.RequestCtx) {
+	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
+	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	token := ctx.Request.Header.Cookie(consts.ATCookieKey)
 
 	if token == nil {
-		slog.Warn("request sent without token")
+		sh.logger.WarnContext(contex, "request sent without token")
 		ctx.Response.SetStatusCode(fasthttp.StatusUnauthorized)
 		return
 	}
@@ -80,14 +87,14 @@ func (sh *Handler) Delete(ctx *fasthttp.RequestCtx) {
 		var ok bool
 		sidStr, ok = sessionID.(string)
 		if !ok {
-			slog.Error("Error while casting sessionId to string", "err", sidStr)
+			sh.logger.ErrorContext(contex, "Error while casting sessionId to string", "err", sidStr)
 		}
 	}
 
-	err := sh.SessionUsecase.Delete(string(token), sidStr)
+	err := sh.SessionUsecase.Delete(contex, string(token), sidStr)
 
 	if err != nil {
-		slog.Error("Error while deleting session", "err", err.Error())
+		sh.logger.ErrorContext(contex, "Error while deleting session", "err", err.Error())
 		ctx.Response.SetStatusCode(fasthttp.StatusUnauthorized)
 		return
 	}

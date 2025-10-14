@@ -1,2 +1,0 @@
-golangci-lint -v run 
-0 issues.

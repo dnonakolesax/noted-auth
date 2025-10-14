@@ -1,28 +1,30 @@
 package user
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
 type usecase interface {
-	Get(uuid string) (model.User, error)
+	Get(ctx context.Context, uuid string) (model.User, error)
 }
 
 type Handler struct {
 	userUsecase usecase
+	logger      *slog.Logger
 }
 
-func NewUserHandler(userUsecase usecase) *Handler {
+func NewUserHandler(userUsecase usecase, logger *slog.Logger) *Handler {
 	return &Handler{
 		userUsecase: userUsecase,
+		logger:      logger,
 	}
 }
 
@@ -37,10 +39,12 @@ func NewUserHandler(userUsecase usecase) *Handler {
 // @Failure 500
 // @Router /users/{id} [get].
 func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
+	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
+	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	userID := ctx.UserValue("id")
 
 	if userID == nil {
-		slog.Warn("empty user id")
+		uh.logger.WarnContext(contex, "empty user id")
 		ctx.Response.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
@@ -48,15 +52,15 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 	idString, ok := userID.(string)
 
 	if !ok {
-		slog.Error(errors.New("could not convert user id to string").Error())
+		uh.logger.ErrorContext(contex, "could not convert user id to string")
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
 
-	user, err := uh.userUsecase.Get(idString)
+	user, err := uh.userUsecase.Get(contex, idString)
 
 	if err != nil {
-		slog.Warn(fmt.Errorf("could not get user: %w", err).Error())
+		uh.logger.WarnContext(contex, "could not get user", "error", err.Error())
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
@@ -64,7 +68,7 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 	userJSON, err := json.Marshal(user)
 
 	if err != nil {
-		slog.Error(fmt.Errorf("could not marshal user: %w", err).Error())
+		uh.logger.ErrorContext(contex, "could not marshal user", "error", err.Error())
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}

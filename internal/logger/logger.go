@@ -9,7 +9,16 @@ import (
 	"time"
 )
 
-func NewLogger(cfgLogLevel string, addSource bool) *slog.Logger {
+type Loggers struct {
+	HTTP    *slog.Logger
+	HTTPc   *slog.Logger
+	GRPC    *slog.Logger
+	Service *slog.Logger
+	Repo    *slog.Logger
+	Infra   *slog.Logger
+}
+
+func NewLogger(cfgLogLevel string, addSource bool, layer string) *slog.Logger {
 	commitHash, ok := os.LookupEnv("CI_COMMIT_HASH")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -54,7 +63,19 @@ func NewLogger(cfgLogLevel string, addSource bool) *slog.Logger {
 			slog.String("commit hash", commitHash),
 			slog.String("pod name", podName),
 		),
+		slog.String("layer", layer),
 	)
 
 	return logger
+}
+
+func SetupLoggers(cfgLogLevel string, addSource bool) *Loggers {
+	return &Loggers{
+		HTTP:    NewLogger(cfgLogLevel, addSource, "http-server"),
+		HTTPc:   NewLogger(cfgLogLevel, addSource, "http-client"),
+		GRPC:    NewLogger(cfgLogLevel, addSource, "grpc"),
+		Service: NewLogger(cfgLogLevel, addSource, "service"),
+		Repo:    NewLogger(cfgLogLevel, addSource, "repo"),
+		Infra:   NewLogger(cfgLogLevel, addSource, "infra"),
+	}
 }

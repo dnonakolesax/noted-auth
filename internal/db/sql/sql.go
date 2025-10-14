@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 type PGXConn struct {
 	pool           *pgxpool.Pool
 	requestTimeout time.Duration
+	logger         *slog.Logger
 }
 
 type RDBError struct {
@@ -34,7 +36,7 @@ type PGXResponse struct {
 	rows pgx.Rows
 }
 
-func NewPGXConn(config configs.RDBConfig) (*PGXConn, error) {
+func NewPGXConn(config configs.RDBConfig, logger *slog.Logger) (*PGXConn, error) {
 	connString := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=disable",
 		config.Login,
 		config.Password,
@@ -59,23 +61,30 @@ func NewPGXConn(config configs.RDBConfig) (*PGXConn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout)
 	defer cancel()
 
+	logger.Info("Starting pgxpool", "address", config.Address)
 	pool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
 	if err != nil {
+		logger.Error("Error while starting pgxpool", "address", config.Address, "error", err.Error())
 		return nil, fmt.Errorf("CreatePool error: %w", err)
 	}
+	logger.Info("Started pgxpool", "address", config.Address)
 
 	poolCtx, poolCancel := context.WithTimeout(context.Background(), config.RequestTimeout)
 	defer poolCancel()
+	logger.Info("Trying to ping pgsql", "address", config.Address)
 	err = pool.Ping(poolCtx)
 
 	if err != nil {
+		logger.Error("Error while pinging pgxpool", "address", config.Address, "error", err.Error())
 		return nil, fmt.Errorf("ping error: %w", err)
 	}
+	logger.Info("Pgsql ping success", "address", config.Address)
 
-	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout}, nil
+	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout, logger: logger}, nil
 }
 
 func (pc *PGXConn) Disconnect() {
+	pc.logger.Info("closing connection to pgsql")
 	pc.pool.Close()
 }
 
@@ -127,16 +136,20 @@ func NewPGXWorker(conn *PGXConn) (*PGXWorker, error) {
 func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) error {
 	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
 	defer cancel()
+
+	pw.Conn.logger.DebugContext(ctx, "executing sql", "sql", sql)
 	_, err := pw.Conn.pool.Exec(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
+		pw.Conn.logger.DebugContext(ctx, "failed executing sql", "sql", sql, "error", err.Error())
 		rdbErr := new(RDBError)
 		rdbErr.Type = pgErr.Code
 		rdbErr.Field = pgErr.ColumnName
 		return rdbErr
 	}
+	pw.Conn.logger.DebugContext(ctx, "done executing sql", "sql", sql)
 
 	return nil
 }
@@ -144,13 +157,16 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{}) (*PGXResponse, error) {
 	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
 	defer cancel()
+	pw.Conn.logger.DebugContext(ctx, "executing sql", "sql", sql)
 	result, err := pw.Conn.pool.Query(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
+		pw.Conn.logger.DebugContext(ctx, "failed executing sql", "sql", sql, "error", err.Error())
 		return &PGXResponse{}, RDBError{Type: pgErr.Code, Field: pgErr.ColumnName}
 	}
+	pw.Conn.logger.DebugContext(ctx, "done executing sql", "sql", sql)
 
 	return &PGXResponse{result}, nil
 }
@@ -170,7 +186,8 @@ func (pr *PGXResponse) Scan(dest ...any) error {
 
 func (pr *PGXResponse) Close() error {
 	pr.rows.Close()
-	// Err() on the returned Rows must be checked after the Rows is closed to determine if the query executed successfully as some errors can only be detected by reading the entire response.
+	// Err() on the returned Rows must be checked after the Rows is closed to determine
+	// if the query executed successfully as some errors can only be detected by reading the entire response.
 	// e.g. A divide by zero error on the last row.
 	err := pr.rows.Err()
 	if err != nil {

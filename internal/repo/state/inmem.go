@@ -1,7 +1,9 @@
 package state
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/muesli/cache2go"
@@ -11,28 +13,41 @@ import (
 
 type InMemStateRepo struct {
 	client *cache2go.CacheTable
+	logger *slog.Logger
 }
 
-func (sr *InMemStateRepo) SetState(state string, redirectURI string, timeout int64) error {
+func NewInMemStateRepo(logger *slog.Logger) *InMemStateRepo {
+	return &InMemStateRepo{
+		logger: logger,
+	}
+}
+
+func (sr *InMemStateRepo) SetState(ctx context.Context, state string, redirectURI string, timeout int64) error {
+	sr.logger.DebugContext(ctx, "Adding state to in-memory cache")
 	sr.client.Add(state, time.Second*time.Duration(timeout), redirectURI)
 
 	return nil
 }
 
-func (sr *InMemStateRepo) GetState(state string) (string, error) {
+func (sr *InMemStateRepo) GetState(ctx context.Context, state string) (string, error) {
+	sr.logger.DebugContext(ctx, "Getting state from in-memory cache")
 	val, err := sr.client.Value(state)
 
 	if err != nil {
 		if errors.Is(err, cache2go.ErrKeyNotFound) {
+			sr.logger.WarnContext(ctx, "Key not found in in-memory cache")
 			return "", errorvals.ErrObjectNotFoundInRepoError
 		}
+		sr.logger.ErrorContext(ctx, "Error getting state from in-memory cache", slog.String("error", err.Error()))
 		return "", err
 	}
+	sr.logger.DebugContext(ctx, "Got state from in-memory cache")
 
 	stringData, ok := val.Data().(string)
 
 	if !ok {
-		return "", errors.New("proebali")
+		sr.logger.ErrorContext(ctx, "Failed to cast in-memory cache data to string")
+		return "", errors.New("failed to cast data to string")
 	}
 
 	return stringData, nil

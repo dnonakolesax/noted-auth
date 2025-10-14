@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/cryptos"
 	"github.com/dnonakolesax/noted-auth/internal/httpclient"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
 type StateRepo interface {
-	SetState(state string, redirectURI string, timeout time.Duration) error
-	GetState(state string) (string, error)
+	SetState(ctx context.Context, state string, redirectURI string, timeout time.Duration) error
+	GetState(ctx context.Context, state string) (string, error)
 }
 
 type AuthUsecase struct {
@@ -27,30 +28,34 @@ type AuthUsecase struct {
 	stateRepo    StateRepo
 	kcConfig     configs.KeycloakConfig
 	httpClient   *httpclient.HTTPClient
+	logger       *slog.Logger
 }
 
 func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig,
-	httpClient *httpclient.HTTPClient) *AuthUsecase {
+	httpClient *httpclient.HTTPClient, logger *slog.Logger) *AuthUsecase {
 	return &AuthUsecase{
 		authLifetime: authLifetime,
 		stateRepo:    stateRepo,
 		kcConfig:     kcConfig,
 		httpClient:   httpClient,
+		logger:       logger,
 	}
 }
 
-func (ac *AuthUsecase) GetAuthLink(returnURL string) (string, error) {
+func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (string, error) {
 	state, err := cryptos.GenRandomString(ac.kcConfig.StateLength)
 
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to create crypto-random string", slog.String("Error", err.Error()))
 		return "", err
 	}
 
 	encodedState := base64.URLEncoding.EncodeToString(state)
 
-	err = ac.stateRepo.SetState(encodedState, returnURL, ac.authLifetime)
+	err = ac.stateRepo.SetState(ctx, encodedState, returnURL, ac.authLifetime)
 
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to set state", slog.String("Error", err.Error()))
 		return "", err
 	}
 
@@ -59,16 +64,18 @@ func (ac *AuthUsecase) GetAuthLink(returnURL string) (string, error) {
 	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
 	data.Set("state", encodedState)
 	data.Set("response_type", "code")
-	slog.Info(data.Encode())
+	ac.logger.InfoContext(ctx, data.Encode())
 	link := fmt.Sprintf("%s%s?%s", ac.kcConfig.RealmAddress, ac.kcConfig.AuthEndpoint, data.Encode())
+	ac.logger.DebugContext(ctx, "Created auth link", slog.String("Link", link))
 
 	return link, nil
 }
 
-func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, error) {
-	returnURL, err := ac.stateRepo.GetState(state)
+func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) (model.TokenDTO, error) {
+	returnURL, err := ac.stateRepo.GetState(ctx, state)
 
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to get state", slog.String("Error", err.Error()))
 		return model.TokenDTO{}, err
 	}
 
@@ -87,16 +94,21 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 	}()
 
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to get token", slog.String("Error", err.Error()))
 		return model.TokenDTO{}, err
 	}
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to read token-post response body", slog.String("Error", err.Error()))
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
 	err = json.Unmarshal(body, &dto)
 	if err != nil {
+		ac.logger.ErrorContext(ctx, "Failed to unmarshal token-post response body",
+			slog.String("Error", err.Error()))
+		ac.logger.DebugContext(ctx, "", "body", body)
 		return model.TokenDTO{}, err
 	}
 	dto.ReturnURL = returnURL
@@ -104,7 +116,10 @@ func (ac *AuthUsecase) GetToken(state string, code string) (model.TokenDTO, erro
 	return dto, nil
 }
 
-func (ac *AuthUsecase) GetLogoutLink() string {
-	return fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s",
+func (ac *AuthUsecase) GetLogoutLink(ctx context.Context) string {
+	trace, _ := ctx.Value(consts.TraceContextKey).(slog.Attr)
+	link := fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s",
 		ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI)
+	ac.logger.DebugContext(ctx, "Created logout link", slog.String("link", link), trace)
+	return link
 }

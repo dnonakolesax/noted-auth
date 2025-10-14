@@ -7,6 +7,7 @@ service:
   allowed-redirect: https://dnk33.com/ # Базовый URL, на который можно редиректить после авторизации (будет приниматься <allowed-redirect>/*)
   log-level: debug
   log-add-source: true
+  log-timeout: 10s
   metrics-endpoint: /metrics
 
 postgres:
