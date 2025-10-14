@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
@@ -32,6 +33,7 @@ import (
 	"github.com/dnonakolesax/noted-auth/internal/usecase"
 
 	authDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1"
+	healthDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/healthcheck/v1"
 	sessionDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/session/v1"
 	userDelivery "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1"
 
@@ -60,6 +62,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*               CONFIG LOADING                 */
 	/************************************************/
 
+	vaultHealthcheck := &atomic.Bool{}
 	v := viper.New()
 	v.PanicOnNil = true
 	// ondefault
@@ -90,6 +93,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*               SQL DB CONNECTION              */
 	/************************************************/
 
+	postgresHealthcheck := &atomic.Bool{}
 	initLogger.InfoContext(context.Background(), "Starting SQL DB connection")
 	psqlConn, err := dbsql.NewPGXConn(psqlConfig, appLoggers.Infra)
 	initLogger.InfoContext(context.Background(), "SQL DB connection established")
@@ -113,6 +117,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*              REDIS DB CONNECTION             */
 	/************************************************/
 
+	redisHealtcheck := &atomic.Bool{}
 	initLogger.InfoContext(context.Background(), "Starting REDIS DB connection")
 	redisClient, err := dbredis.NewClient(redisConfig, appLoggers.Infra)
 	initLogger.InfoContext(context.Background(), "REDIS DB connection established")
@@ -164,6 +169,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*              HTTP CLIENT SETUP               */
 	/************************************************/
 
+	keycloakHealthcheck := &atomic.Bool{}
 	httpClient := httpclient.NewWithRetry(kcConfig.InterRealmAddress+kcConfig.TokenEndpoint,
 		httpClientConfig, tokenRequestMetrics, appLoggers.HTTPc)
 
@@ -199,6 +205,8 @@ func main() { //nolint:funlen // TODO: refactor
 		stateUsecase, appLoggers.HTTP)
 	userHandler := userDelivery.NewUserHandler(userUsecase, appLoggers.HTTP)
 	sessionHandler := sessionDelivery.NewSessionHandler(sessionUsecase, appLoggers.HTTP)
+	healthcheckHandler := healthDelivery.NewHealthCheckHandler(redisHealtcheck, postgresHealthcheck,
+		keycloakHealthcheck, vaultHealthcheck, appLoggers.HTTP)
 
 	/************************************************/
 	/*               HTTP ROUTER SETUP              */
@@ -207,7 +215,7 @@ func main() { //nolint:funlen // TODO: refactor
 	router := routing.NewRouter()
 	p := fasthttpprom.NewPrometheus("")
 	p.Use(router.Router())
-	router.NewAPIGroup(appConfig.BasePath, "1", authHandler, userHandler, sessionHandler)
+	router.NewAPIGroup(appConfig.BasePath, "1", authHandler, userHandler, sessionHandler, healthcheckHandler)
 
 	/************************************************/
 	/*               GRPC SERVER START              */

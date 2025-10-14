@@ -7,5 +7,9 @@
 Known issues:
 - Нет PKCE
 - Нет тестов
-- Не настроен CI/CD
+- Не настроен CI/CD + codecov
 - Нет обработчика /healthcheck
+- Не настроен viper для vault
+- Нет easyjson
+- Логи не в файлы
+- Проверить state на /token
