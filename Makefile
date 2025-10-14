@@ -1,5 +1,8 @@
 .PHONY: run
 
+test:
+	./scripts/sqlmap.sh
+
 run:
 	go run cmd/api/main.go
 

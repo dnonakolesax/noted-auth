@@ -9,7 +9,7 @@ Known issues:
 - Нет тестов
 - Не настроен CI/CD + codecov
 - Нет обработчика /healthcheck
-- Не настроен viper для vault
+- Не настроен viper для vault + yml path
 - Нет easyjson
 - Логи не в файлы
 - Проверить state на /token
