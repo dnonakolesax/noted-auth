@@ -60,7 +60,7 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 	user, err := uh.userUsecase.Get(contex, idString)
 
 	if err != nil {
-		uh.logger.WarnContext(contex, "could not get user", "error", err.Error())
+		uh.logger.WarnContext(contex, "could not get user", slog.String(consts.ErrorLoggerKey, err.Error()))
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
@@ -68,7 +68,7 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 	userJSON, err := json.Marshal(user)
 
 	if err != nil {
-		uh.logger.ErrorContext(contex, "could not marshal user", "error", err.Error())
+		uh.logger.ErrorContext(contex, "could not marshal user", slog.String(consts.ErrorLoggerKey, err.Error()))
 		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}

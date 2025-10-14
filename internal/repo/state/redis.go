@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	dbredis "github.com/dnonakolesax/noted-auth/internal/db/redis"
 	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 )
@@ -31,7 +32,7 @@ func (rr *RedisStateRepo) SetState(ctx context.Context, state string, redirectUR
 	rsp := rr.client.Client.Set(dbctx, state, redirectURI, timeout)
 
 	if rsp.Err() != nil {
-		rr.logger.ErrorContext(ctx, "Failed to set state", "error", rsp.Err())
+		rr.logger.ErrorContext(ctx, "Failed to set state", slog.String(consts.ErrorLoggerKey, rsp.Err().Error()))
 		return rsp.Err()
 	}
 	rr.logger.DebugContext(ctx, "Set state success")
@@ -46,10 +47,10 @@ func (rr *RedisStateRepo) GetState(ctx context.Context, state string) (string, e
 	val, err := rr.client.Client.Get(dbctx, state).Result()
 
 	if errors.Is(err, redis.Nil) {
-		rr.logger.WarnContext(ctx, "State not found", slog.String("error", err.Error()))
+		rr.logger.WarnContext(ctx, "State not found", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", errorvals.ErrObjectNotFoundInRepoError
 	} else if err != nil {
-		rr.logger.ErrorContext(ctx, "Failed to get state", slog.String("error", err.Error()))
+		rr.logger.ErrorContext(ctx, "Failed to get state", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", err
 	}
 	rr.logger.DebugContext(ctx, "Got state")

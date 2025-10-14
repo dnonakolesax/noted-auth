@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/httpclient"
 )
 
@@ -27,14 +28,14 @@ func (su *SessionUsecase) Get(ctx context.Context, token string) ([]byte, error)
 	}()
 
 	if err != nil {
-		su.logger.ErrorContext(ctx, "Error getting sessions", slog.String("error", err.Error()))
+		su.logger.ErrorContext(ctx, "Error getting sessions", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 
 	body, err := io.ReadAll(sessionsResponse.Body)
 
 	if err != nil {
-		su.logger.ErrorContext(ctx, "Error reading response body", slog.String("error", err.Error()))
+		su.logger.ErrorContext(ctx, "Error reading response body", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 
@@ -48,7 +49,7 @@ func (su *SessionUsecase) Delete(ctx context.Context, token string, id string) e
 	}()
 
 	if err != nil {
-		su.logger.ErrorContext(ctx, "Error deleting response", slog.String("error", err.Error()))
+		su.logger.ErrorContext(ctx, "Error deleting response", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return err
 	}
 

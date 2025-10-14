@@ -26,6 +26,8 @@ const (
 	HTTPPathDelimeter               = "/"
 )
 
+const methodLoggerKey = "method"
+
 type HTTPClient struct {
 	c        *http.Client
 	endpoint string
@@ -113,22 +115,25 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	}
 
 	reqStart := time.Now().UnixMilli()
-	hc.logger.InfoContext(ctx, "Executing request", "method", method)
+	hc.logger.InfoContext(ctx, "Executing request", slog.String(methodLoggerKey, method))
 	resp, err := hc.c.Do(req)
 	reqEnd := time.Now().UnixMilli()
-	hc.logger.InfoContext(ctx, "Executed request", "time", reqEnd-reqStart, "method", method)
+	hc.logger.InfoContext(ctx, "Executed request", slog.Int64("time", reqEnd-reqStart),
+		slog.String(methodLoggerKey, method))
 
 	hc.metrics.RequestDurations.Observe(float64(reqEnd - reqStart))
 	hc.observeRequestStatus(resp, err)
 
 	if err != nil {
-		hc.logger.ErrorContext(ctx, "Error executing http-request", "error", err.Error(), "method", method)
+		hc.logger.ErrorContext(ctx, "Error executing http-request", slog.String(consts.ErrorLoggerKey, err.Error()),
+			slog.String(methodLoggerKey, method))
 		return nil, err
 	}
 
 	if hc.shouldRetryStatus(resp.StatusCode) {
 		drainAndClose(resp.Body)
-		hc.logger.InfoContext(ctx, "Should retry request", "method", method, "Code", resp.StatusCode)
+		hc.logger.InfoContext(ctx, "Should retry request", slog.String(methodLoggerKey, method),
+			slog.Int("Code", resp.StatusCode))
 		return resp, fmt.Errorf("retryable HTTP status %d", resp.StatusCode)
 	}
 
@@ -141,7 +146,7 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 		fmt.Sprintf("%s%s%s", hc.endpoint, HTTPPathDelimeter, params.pathParam),
 		strings.NewReader(params.body))
 	if err != nil {
-		hc.logger.ErrorContext(ctx, "Error creating http-request", "error", err.Error())
+		hc.logger.ErrorContext(ctx, "Error creating http-request", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 

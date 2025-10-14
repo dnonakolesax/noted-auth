@@ -66,7 +66,7 @@ func (ah *Handler) handleAuth(ctx *fasthttp.RequestCtx) {
 	redirectLink, err := ah.authUsecase.GetAuthLink(contex, returnURLString)
 
 	if err != nil {
-		ah.logger.ErrorContext(contex, "Error while getting auth link", slog.Any("error", err))
+		ah.logger.ErrorContext(contex, "Error while getting auth link", slog.String(consts.ErrorLoggerKey, err.Error()))
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
@@ -111,7 +111,7 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 			ctx.SetStatusCode(fasthttp.StatusRequestTimeout)
 			return
 		}
-		ah.logger.ErrorContext(contex, "Error while getting token", slog.Any("error", err))
+		ah.logger.ErrorContext(contex, "Error while getting token", slog.String(consts.ErrorLoggerKey, err.Error()))
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}

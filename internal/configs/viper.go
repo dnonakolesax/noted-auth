@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/dnonakolesax/viper"
+
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 )
 
 type configurable interface {
@@ -32,6 +34,7 @@ func Load(path string, v *viper.Viper, logger *slog.Logger, configs ...configura
 			logger.Error("Config file not found yaml")
 			return nil
 		}
+		logger.Error("Failed to merge yaml config", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return fmt.Errorf("failed to merge config: %w", err)
 	}
 
@@ -65,6 +68,7 @@ func Load(path string, v *viper.Viper, logger *slog.Logger, configs ...configura
 			logger.Error("Config file not found env")
 			return nil
 		}
+		logger.Error("Failed to merge dotenv config", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return fmt.Errorf("failed to merge config: %w", err)
 	}
 

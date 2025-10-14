@@ -26,7 +26,7 @@ func (us *Server) GetUserCtx(ctx context.Context, req *proto.UserId) (*proto.Use
 	traceID, ok := ctx.Value("ReqId").(string)
 
 	if !ok {
-		us.logger.ErrorContext(ctx, "Couldn't cast trace id to string")
+		us.logger.ErrorContext(ctx, "Couldn't cast trace id to string", slog.Any("traceID", traceID))
 	}
 
 	trace := slog.String(consts.TraceLoggerKey, traceID)
@@ -34,7 +34,7 @@ func (us *Server) GetUserCtx(ctx context.Context, req *proto.UserId) (*proto.Use
 	user, err := us.userUsecase.Get(contex, req.GetUuid())
 
 	if err != nil {
-		us.logger.ErrorContext(ctx, "Error getting user")
+		us.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 

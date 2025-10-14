@@ -17,6 +17,7 @@ import (
 	"github.com/valyala/fasthttp"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	dbredis "github.com/dnonakolesax/noted-auth/internal/db/redis"
 	dbsql "github.com/dnonakolesax/noted-auth/internal/db/sql"
 	"github.com/dnonakolesax/noted-auth/internal/httpclient"
@@ -75,7 +76,8 @@ func main() { //nolint:funlen // TODO: refactor
 		&appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
 
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), fmt.Sprintf("Error loading config: %v", err))
+		initLogger.ErrorContext(context.Background(), "Error loading config",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return
 	}
 	/************************************************/
@@ -93,7 +95,8 @@ func main() { //nolint:funlen // TODO: refactor
 	initLogger.InfoContext(context.Background(), "SQL DB connection established")
 
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), "Error connecting to database", slog.String("error", err.Error()))
+		initLogger.ErrorContext(context.Background(), "Error connecting to database",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return
 	}
 	defer psqlConn.Disconnect()
@@ -101,7 +104,8 @@ func main() { //nolint:funlen // TODO: refactor
 	psqlWorker, err := dbsql.NewPGXWorker(psqlConn)
 
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), "Error creating pgsql worker", slog.String("error", err.Error()))
+		initLogger.ErrorContext(context.Background(), "Error creating pgsql worker",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return
 	}
 
@@ -114,7 +118,8 @@ func main() { //nolint:funlen // TODO: refactor
 	initLogger.InfoContext(context.Background(), "REDIS DB connection established")
 
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), "Error connecting to redis", slog.String("error", err.Error()))
+		initLogger.ErrorContext(context.Background(), "Error connecting to redis",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return
 	}
 	defer redisClient.Client.Close()
@@ -166,13 +171,14 @@ func main() { //nolint:funlen // TODO: refactor
 	/*                  REPOS INIT                  */
 	/************************************************/
 
-	stateRepository := stateRepo.NewRedisStateRepo(redisClient, appLoggers.Repo)
-	// TODO: add state in-memory repo
+	stateRedisRepository := stateRepo.NewRedisStateRepo(redisClient, appLoggers.Repo)
+	stateInMemoryRepository := stateRepo.NewInMemStateRepo(appLoggers.Repo)
+	stateRepos := []usecase.StateRepo{stateInMemoryRepository, stateRedisRepository}
 	userRepository, err := userRepo.NewUserRepo(psqlWorker, kcConfig.RealmID, psqlConfig.RequestsPath, appLoggers.Repo)
 
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Error creating user repository",
-			slog.String("error", err.Error()))
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		panic(fmt.Errorf("error creating user repository %s", err.Error()))
 	}
 
@@ -180,7 +186,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*                USECASES INIT                 */
 	/************************************************/
 
-	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepository, kcConfig, httpClient,
+	stateUsecase := usecase.NewAuthUsecase(appConfig.AuthTimeout, stateRepos, kcConfig, httpClient,
 		appLoggers.Service)
 	userUsecase := usecase.NewUserUsecase(userRepository, appLoggers.Service)
 	sessionUsecase := usecase.NewSessionUsecase(httpClient, appLoggers.Service)
@@ -211,7 +217,8 @@ func main() { //nolint:funlen // TODO: refactor
 	listener, err := cfg.Listen(context.Background(), "tcp", ":"+strconv.Itoa(appConfig.GRPCPort))
 
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), "Error listening grpc net", slog.String("error", err.Error()))
+		initLogger.ErrorContext(context.Background(), "Error listening grpc net",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		panic(fmt.Sprintf("error listening grpc net: %v", err))
 	}
 
@@ -272,7 +279,7 @@ func main() { //nolint:funlen // TODO: refactor
 	err = srv.Shutdown()
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Main HTTP server shutdown error",
-			slog.String("error", err.Error()))
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 	}
 
 	/************************************************/
@@ -291,7 +298,7 @@ func main() { //nolint:funlen // TODO: refactor
 
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Metrics server shutdown error",
-			slog.String("error", err.Error()))
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 	}
 
 	wg.Wait()

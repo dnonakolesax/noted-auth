@@ -12,9 +12,9 @@ import (
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/dnonakolesax/noted-auth/internal/consts"
-	"github.com/dnonakolesax/noted-auth/internal/cryptos"
 	"github.com/dnonakolesax/noted-auth/internal/httpclient"
 	"github.com/dnonakolesax/noted-auth/internal/model"
+	"github.com/dnonakolesax/noted-auth/internal/rnd"
 )
 
 type StateRepo interface {
@@ -25,17 +25,17 @@ type StateRepo interface {
 type AuthUsecase struct {
 	authLifetime time.Duration
 	kcTimeout    time.Duration
-	stateRepo    StateRepo
+	repos        []StateRepo
 	kcConfig     configs.KeycloakConfig
 	httpClient   *httpclient.HTTPClient
 	logger       *slog.Logger
 }
 
-func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig configs.KeycloakConfig,
+func NewAuthUsecase(authLifetime time.Duration, repos []StateRepo, kcConfig configs.KeycloakConfig,
 	httpClient *httpclient.HTTPClient, logger *slog.Logger) *AuthUsecase {
 	return &AuthUsecase{
 		authLifetime: authLifetime,
-		stateRepo:    stateRepo,
+		repos:        repos,
 		kcConfig:     kcConfig,
 		httpClient:   httpClient,
 		logger:       logger,
@@ -43,21 +43,28 @@ func NewAuthUsecase(authLifetime time.Duration, stateRepo StateRepo, kcConfig co
 }
 
 func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (string, error) {
-	state, err := cryptos.GenRandomString(ac.kcConfig.StateLength)
+	state, err := rnd.GenRandomString(ac.kcConfig.StateLength)
 
 	if err != nil {
-		ac.logger.ErrorContext(ctx, "Failed to create crypto-random string", slog.String("Error", err.Error()))
+		ac.logger.ErrorContext(ctx, "Failed to create crypto-random string",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", err
 	}
 
 	encodedState := base64.URLEncoding.EncodeToString(state)
 
-	err = ac.stateRepo.SetState(ctx, encodedState, returnURL, ac.authLifetime)
+	err = ac.repos[0].SetState(ctx, encodedState, returnURL, ac.authLifetime)
 
-	if err != nil {
-		ac.logger.ErrorContext(ctx, "Failed to set state", slog.String("Error", err.Error()))
-		return "", err
-	}
+	go func() {
+		for i := 1; i < len(ac.repos); i++ {
+			err = ac.repos[1].SetState(ctx, encodedState, returnURL, ac.authLifetime)
+
+			if err != nil {
+				ac.logger.ErrorContext(ctx, "Failed to set state",
+					slog.String(consts.ErrorLoggerKey, err.Error()))
+			}
+		}
+	}()
 
 	data := url.Values{}
 	data.Set("client_id", ac.kcConfig.ClientID)
@@ -72,11 +79,15 @@ func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (strin
 }
 
 func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) (model.TokenDTO, error) {
-	returnURL, err := ac.stateRepo.GetState(ctx, state)
+	var returnURL string
+	for _, repo := range ac.repos {
+		var err error
+		returnURL, err = repo.GetState(ctx, state)
 
-	if err != nil {
-		ac.logger.ErrorContext(ctx, "Failed to get state", slog.String("Error", err.Error()))
-		return model.TokenDTO{}, err
+		if err != nil {
+			ac.logger.ErrorContext(ctx, "Failed to get state", slog.String(consts.ErrorLoggerKey, err.Error()))
+			return model.TokenDTO{}, err
+		}
 	}
 
 	data := url.Values{}
@@ -94,20 +105,21 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	}()
 
 	if err != nil {
-		ac.logger.ErrorContext(ctx, "Failed to get token", slog.String("Error", err.Error()))
+		ac.logger.ErrorContext(ctx, "Failed to get token", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.TokenDTO{}, err
 	}
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		ac.logger.ErrorContext(ctx, "Failed to read token-post response body", slog.String("Error", err.Error()))
+		ac.logger.ErrorContext(ctx, "Failed to read token-post response body",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
 	err = json.Unmarshal(body, &dto)
 	if err != nil {
 		ac.logger.ErrorContext(ctx, "Failed to unmarshal token-post response body",
-			slog.String("Error", err.Error()))
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		ac.logger.DebugContext(ctx, "", "body", body)
 		return model.TokenDTO{}, err
 	}

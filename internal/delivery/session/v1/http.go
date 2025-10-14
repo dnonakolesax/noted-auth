@@ -16,13 +16,13 @@ type usecase interface {
 }
 
 type Handler struct {
-	SessionUsecase usecase
+	sessionUsecase usecase
 	logger         *slog.Logger
 }
 
 func NewSessionHandler(sesionUsecase usecase, logger *slog.Logger) *Handler {
 	return &Handler{
-		SessionUsecase: sesionUsecase,
+		sessionUsecase: sesionUsecase,
 		logger:         logger,
 	}
 }
@@ -47,7 +47,7 @@ func (sh *Handler) Get(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	sessions, err := sh.SessionUsecase.Get(contex, string(token))
+	sessions, err := sh.sessionUsecase.Get(contex, string(token))
 
 	if err != nil {
 		sh.logger.ErrorContext(contex, "Error while getting sessions: ", "err", err.Error())
@@ -87,14 +87,14 @@ func (sh *Handler) Delete(ctx *fasthttp.RequestCtx) {
 		var ok bool
 		sidStr, ok = sessionID.(string)
 		if !ok {
-			sh.logger.ErrorContext(contex, "Error while casting sessionId to string", "err", sidStr)
+			sh.logger.ErrorContext(contex, "Error while casting sessionId to string", slog.Any("sessionID", sessionID))
 		}
 	}
 
-	err := sh.SessionUsecase.Delete(contex, string(token), sidStr)
+	err := sh.sessionUsecase.Delete(contex, string(token), sidStr)
 
 	if err != nil {
-		sh.logger.ErrorContext(contex, "Error while deleting session", "err", err.Error())
+		sh.logger.ErrorContext(contex, "Error while deleting session", slog.String(consts.ErrorLoggerKey, err.Error()))
 		ctx.Response.SetStatusCode(fasthttp.StatusUnauthorized)
 		return
 	}

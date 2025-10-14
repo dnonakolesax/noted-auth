@@ -8,6 +8,7 @@ import (
 
 	"github.com/muesli/cache2go"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 )
 
@@ -22,9 +23,9 @@ func NewInMemStateRepo(logger *slog.Logger) *InMemStateRepo {
 	}
 }
 
-func (sr *InMemStateRepo) SetState(ctx context.Context, state string, redirectURI string, timeout int64) error {
+func (sr *InMemStateRepo) SetState(ctx context.Context, state string, redirectURI string, timeout time.Duration) error {
 	sr.logger.DebugContext(ctx, "Adding state to in-memory cache")
-	sr.client.Add(state, time.Second*time.Duration(timeout), redirectURI)
+	sr.client.Add(state, timeout, redirectURI)
 
 	return nil
 }
@@ -38,7 +39,8 @@ func (sr *InMemStateRepo) GetState(ctx context.Context, state string) (string, e
 			sr.logger.WarnContext(ctx, "Key not found in in-memory cache")
 			return "", errorvals.ErrObjectNotFoundInRepoError
 		}
-		sr.logger.ErrorContext(ctx, "Error getting state from in-memory cache", slog.String("error", err.Error()))
+		sr.logger.ErrorContext(ctx, "Error getting state from in-memory cache",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", err
 	}
 	sr.logger.DebugContext(ctx, "Got state from in-memory cache")

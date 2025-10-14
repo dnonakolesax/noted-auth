@@ -4,19 +4,20 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
-type UserRepo interface {
+type repo interface {
 	GetUser(ctx context.Context, userID string) (model.User, error)
 }
 
 type UserUsecase struct {
-	userRepo UserRepo
+	userRepo repo
 	logger   *slog.Logger
 }
 
-func NewUserUsecase(userRepo UserRepo, logger *slog.Logger) *UserUsecase {
+func NewUserUsecase(userRepo repo, logger *slog.Logger) *UserUsecase {
 	return &UserUsecase{
 		userRepo: userRepo,
 		logger:   logger,
@@ -27,7 +28,7 @@ func (uu *UserUsecase) Get(ctx context.Context, userID string) (model.User, erro
 	user, err := uu.userRepo.GetUser(ctx, userID)
 
 	if err != nil {
-		uu.logger.ErrorContext(ctx, "Error getting user", slog.String("error", err.Error()))
+		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.User{}, err
 	}
 

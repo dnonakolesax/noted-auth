@@ -15,5 +15,9 @@ const (
 )
 
 const (
+	ErrorLoggerKey = "error"
+)
+
+const (
 	HTTPHeaderXRequestID = "X-Request-Id"
 )

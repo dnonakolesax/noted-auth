@@ -2,12 +2,11 @@ package middlewares
 
 import (
 	"encoding/base64"
-	"fmt"
 	"log/slog"
 
 	"github.com/valyala/fasthttp"
 
-	"github.com/dnonakolesax/noted-auth/internal/cryptos"
+	"github.com/dnonakolesax/noted-auth/internal/rnd"
 )
 
 const requestIDSize = 16
@@ -17,14 +16,8 @@ func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		requestID := ctx.Request.Header.Peek("X-Request-Id")
 		var reqID string
 		if requestID == nil {
-			var err error
-			requestID, err = cryptos.GenRandomString(requestIDSize)
+			requestID = rnd.NotSafeGenRandomString(requestIDSize)
 			reqID = base64.RawURLEncoding.EncodeToString(requestID)
-			if err != nil {
-				slog.Error(fmt.Sprintf("Error generating RequestId: %v", err))
-				ctx.Response.SetStatusCode(fasthttp.StatusBadRequest)
-				return
-			}
 			ctx.Request.Header.Set("X-Request-Id", reqID)
 		} else {
 			reqID = string(requestID)

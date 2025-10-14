@@ -15,7 +15,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 )
+
+const (
+	addressLoggerKey = "address"
+	sqlLoggerKey     = "sql"
+)
+
+const sqlFileExtension = ".sql"
 
 type PGXConn struct {
 	pool           *pgxpool.Pool
@@ -61,24 +69,26 @@ func NewPGXConn(config configs.RDBConfig, logger *slog.Logger) (*PGXConn, error)
 	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout)
 	defer cancel()
 
-	logger.Info("Starting pgxpool", "address", config.Address)
+	logger.Info("Starting pgxpool", slog.String(addressLoggerKey, config.Address))
 	pool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
 	if err != nil {
-		logger.Error("Error while starting pgxpool", "address", config.Address, "error", err.Error())
+		logger.Error("Error while starting pgxpool", slog.String(addressLoggerKey, config.Address),
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, fmt.Errorf("CreatePool error: %w", err)
 	}
-	logger.Info("Started pgxpool", "address", config.Address)
+	logger.Info("Started pgxpool", slog.String(addressLoggerKey, config.Address))
 
 	poolCtx, poolCancel := context.WithTimeout(context.Background(), config.RequestTimeout)
 	defer poolCancel()
-	logger.Info("Trying to ping pgsql", "address", config.Address)
+	logger.Info("Trying to ping pgsql", slog.String(addressLoggerKey, config.Address))
 	err = pool.Ping(poolCtx)
 
 	if err != nil {
-		logger.Error("Error while pinging pgxpool", "address", config.Address, "error", err.Error())
+		logger.Error("Error while pinging pgxpool", slog.String(addressLoggerKey, config.Address),
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, fmt.Errorf("ping error: %w", err)
 	}
-	logger.Info("Pgsql ping success", "address", config.Address)
+	logger.Info("Pgsql ping success", slog.String(addressLoggerKey, config.Address))
 
 	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout, logger: logger}, nil
 }
@@ -106,7 +116,7 @@ func LoadSQLRequests(dirPath string) (map[string]string, error) {
 			continue // Пропускаем директории
 		}
 
-		if filepath.Ext(file.Name()) != ".sql" {
+		if filepath.Ext(file.Name()) != sqlFileExtension {
 			continue // Пропускаем файлы без .sql расширения
 		}
 
@@ -137,19 +147,20 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
 	defer cancel()
 
-	pw.Conn.logger.DebugContext(ctx, "executing sql", "sql", sql)
+	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
 	_, err := pw.Conn.pool.Exec(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
-		pw.Conn.logger.DebugContext(ctx, "failed executing sql", "sql", sql, "error", err.Error())
+		pw.Conn.logger.DebugContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		rdbErr := new(RDBError)
 		rdbErr.Type = pgErr.Code
 		rdbErr.Field = pgErr.ColumnName
 		return rdbErr
 	}
-	pw.Conn.logger.DebugContext(ctx, "done executing sql", "sql", sql)
+	pw.Conn.logger.DebugContext(ctx, "done executing sql", slog.String(sqlLoggerKey, sql))
 
 	return nil
 }
@@ -157,16 +168,17 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{}) (*PGXResponse, error) {
 	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
 	defer cancel()
-	pw.Conn.logger.DebugContext(ctx, "executing sql", "sql", sql)
+	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
 	result, err := pw.Conn.pool.Query(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
-		pw.Conn.logger.DebugContext(ctx, "failed executing sql", "sql", sql, "error", err.Error())
+		pw.Conn.logger.DebugContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
+			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return &PGXResponse{}, RDBError{Type: pgErr.Code, Field: pgErr.ColumnName}
 	}
-	pw.Conn.logger.DebugContext(ctx, "done executing sql", "sql", sql)
+	pw.Conn.logger.DebugContext(ctx, "done executing sql", slog.String(sqlLoggerKey, sql))
 
 	return &PGXResponse{result}, nil
 }

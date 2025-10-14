@@ -5,11 +5,14 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/dnonakolesax/noted-auth/internal/consts"
 	dbsql "github.com/dnonakolesax/noted-auth/internal/db/sql"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
 
 const thisDomainName = "user"
+
+const userIDKey = "user_id"
 
 const (
 	getUserFileName = "get_user"
@@ -25,7 +28,7 @@ func NewUserRepo(worker *dbsql.PGXWorker, realmID string, requestsPath string, l
 	userRequests, err := dbsql.LoadSQLRequests(requestsPath + thisDomainName)
 
 	if err != nil {
-		logger.Error("Error loading SQL requests", slog.String("error", err.Error()))
+		logger.Error("Error loading SQL requests", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 
@@ -45,29 +48,29 @@ func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, err
 	result, err := ur.worker.Query(ctx, ur.worker.Requests[getUserFileName], userID, ur.realmID)
 
 	if err != nil {
-		ur.logger.ErrorContext(ctx, "Error executing query", slog.String("error", err.Error()))
+		ur.logger.ErrorContext(ctx, "Error executing query", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.User{}, err
 	}
 
 	if !result.Next() {
-		ur.logger.WarnContext(ctx, "User not found", slog.String("id", userID))
+		ur.logger.WarnContext(ctx, "User not found", slog.String(userIDKey, userID))
 		return model.User{}, errors.New("not found")
 	}
 	var user model.User
 	err = result.Scan(&user.Login, &user.FirstName, &user.LastName)
 	if err != nil {
-		ur.logger.ErrorContext(ctx, "Error scanning row", slog.String("error", err.Error()))
+		ur.logger.ErrorContext(ctx, "Error scanning row", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.User{}, err
 	}
 
 	if result.Next() {
-		ur.logger.ErrorContext(ctx, "Too many rows", slog.String("id", userID))
+		ur.logger.ErrorContext(ctx, "Too many rows", slog.String(userIDKey, userID))
 		return model.User{}, errors.New("too many rows")
 	}
 
 	err = result.Close()
 	if err != nil {
-		ur.logger.ErrorContext(ctx, "Error closing result", slog.String("error", err.Error()))
+		ur.logger.ErrorContext(ctx, "Error closing result", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.User{}, err
 	}
 	return user, nil
