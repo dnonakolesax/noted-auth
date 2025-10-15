@@ -5,8 +5,6 @@
 ЗАПУСК С ЛОГАМИ УРОВНЯ DEBUG В PRODUCTION СТРОГО ЗАПРЕЩЁН, ТАК КАК В ДЕБАГ ПИШУТСЯ ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ (ТОКЕНЫ ПОЛЬЗОВАТЕЛЕЙ)
 
 Known issues:
-- Нет PKCE
-- Проверить state на /token
 - Нет тестов
 - Не настроен CI/CD + codecov
 - Не настроен viper + healthcheck для vault + yml path

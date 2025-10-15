@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dnonakolesax/viper"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,6 +31,7 @@ type PGXConn struct {
 	pool           *pgxpool.Pool
 	requestTimeout time.Duration
 	logger         *slog.Logger
+	conf           configs.RDBConfig
 }
 
 type RDBError struct {
@@ -91,7 +93,7 @@ func NewPGXConn(config configs.RDBConfig, logger *slog.Logger) (*PGXConn, error)
 	}
 	logger.Info("Pgsql ping success", slog.String(addressLoggerKey, config.Address))
 
-	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout, logger: logger}, nil
+	return &PGXConn{pool: pool, requestTimeout: config.RequestTimeout, logger: logger, conf: config}, nil
 }
 
 func (pc *PGXConn) Disconnect() {
@@ -136,15 +138,39 @@ func LoadSQLRequests(dirPath string) (map[string]string, error) {
 	return sqlRequests, nil
 }
 
-func NewPGXWorker(conn *PGXConn, alive *atomic.Bool) (*PGXWorker, error) {
+func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan viper.KVEntry) (*PGXWorker, error) {
 	requests := make(map[string]string)
 	alive.Store(true)
 
-	return &PGXWorker{
+	worker := &PGXWorker{
 		Conn:     conn,
 		Requests: requests,
 		Alive:    alive,
-	}, nil
+	}
+
+	go worker.MonitorVault(vaultChan)
+
+	return worker, nil
+}
+
+func (pw *PGXWorker) MonitorVault(vaultChan chan viper.KVEntry) {
+	for newPassword := range vaultChan {
+		newConf := pw.Conn.conf
+		lp := strings.Split(newPassword.Value, ":")
+		if len(lp) != 2 { //nolint:mnd // 2 потому что логин и пароль
+			pw.Conn.logger.Error("invalid password format received from vault")
+			continue
+		}
+		newConf.Login = lp[0]
+		newConf.Password = lp[1]
+		newConn, err := NewPGXConn(newConf, pw.Conn.logger)
+		if err != nil {
+			pw.Conn.logger.Error("Error creating new pgsql conn from vauld credentials",
+				slog.String(consts.ErrorLoggerKey, err.Error()))
+			continue
+		}
+		pw.Conn = newConn
+	}
 }
 
 func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) error {

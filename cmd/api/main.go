@@ -15,6 +15,7 @@ import (
 
 	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
 	"github.com/dnonakolesax/viper"
+	"github.com/joho/godotenv"
 	"github.com/valyala/fasthttp"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
@@ -26,6 +27,7 @@ import (
 	"github.com/dnonakolesax/noted-auth/internal/metrics"
 	"github.com/dnonakolesax/noted-auth/internal/middlewares"
 	"github.com/dnonakolesax/noted-auth/internal/routing"
+	"github.com/dnonakolesax/noted-auth/internal/vault"
 
 	stateRepo "github.com/dnonakolesax/noted-auth/internal/repo/state"
 	userRepo "github.com/dnonakolesax/noted-auth/internal/repo/user"
@@ -59,6 +61,15 @@ import (
 func main() { //nolint:funlen // TODO: refactor
 	lcfg := configs.LoggerConfig{LogLevel: "info", LogAddSource: true}
 	initLogger := logger.NewLogger(lcfg, "init")
+
+	err := godotenv.Load()
+	if err != nil {
+		initLogger.ErrorContext(context.Background(), "Error loading .env file")
+		panic(err)
+	}
+
+	vaultConfig := configs.NewVaultConfig()
+	vaultClient := vault.SetupVault(vaultConfig, initLogger)
 	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
@@ -66,7 +77,6 @@ func main() { //nolint:funlen // TODO: refactor
 	vaultHealthcheck := &atomic.Bool{}
 	v := viper.New()
 	v.PanicOnNil = true
-	// ondefault
 
 	kcConfig := configs.KeycloakConfig{}
 	psqlConfig := configs.RDBConfig{}
@@ -76,8 +86,10 @@ func main() { //nolint:funlen // TODO: refactor
 	httpClientConfig := configs.HTTPClientConfig{}
 	loggerConfig := configs.LoggerConfig{}
 
-	err := configs.Load("./configs/", v, initLogger, &kcConfig, &psqlConfig, &redisConfig,
-		&appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
+	vaultChan := make(chan viper.KVEntry)
+
+	err = configs.Load("./configs/", v, initLogger, vaultClient, vaultChan, &kcConfig, &psqlConfig,
+		&redisConfig, &appConfig, &serverConfig, &httpClientConfig, &loggerConfig)
 
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Error loading config",
@@ -106,7 +118,7 @@ func main() { //nolint:funlen // TODO: refactor
 	}
 	defer psqlConn.Disconnect()
 
-	psqlWorker, err := dbsql.NewPGXWorker(psqlConn, postgresHealthcheck)
+	psqlWorker, err := dbsql.NewPGXWorker(psqlConn, postgresHealthcheck, vaultChan)
 
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Error creating pgsql worker",
