@@ -8,6 +8,9 @@ service:
   log-level: debug
   log-add-source: true
   log-timeout: 10s
+  log-max-file-size: 100 # Максимальный размер файла лога (Мб)
+  log-max-backups: 3 # Максимальное количество бэкапов лога
+  log-max-age: 28 # Максимальный возраст файла лога (дней)
   metrics-endpoint: /metrics
 
 postgres:
@@ -36,6 +39,7 @@ realm:
   redirect-url: http://127.0.0.1:8800/api/v1/iam/openid-connect/token # URL для редиректа после авторизации
   te-timeout: 10s # Таймаут ожидания ответа от POST-запроса на /token (секунды)
   state-length: 32 # Длина параметра state (байты)
+  code-verifier-length: 128 # Длина параметра code_verifier (байты)
   id: a2771237-6233-41ef-a997-840a2eecc7ab
   post-logout-redirect-uri: https://dnk33.com/
   auth-endpoint: /auth

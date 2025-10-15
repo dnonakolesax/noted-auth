@@ -1,6 +1,6 @@
 package model
 
-type TokenDTO struct {
+type TokenDTO struct { //nolint:recvcheck // autogen issues
 	AccessToken     string `json:"access_token"`
 	ExpiresIn       int    `json:"expires_in"`
 	RefreshExp      int    `json:"refresh_expires_in"`

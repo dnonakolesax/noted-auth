@@ -104,6 +104,6 @@ func (sh *Handler) Delete(ctx *fasthttp.RequestCtx) {
 
 func (sh *Handler) RegisterRoutes(apiGroup *router.Group) {
 	g := apiGroup.Group("/session")
-	g.GET("", sh.Get)
+	g.GET("/", sh.Get)
 	g.DELETE("/{id}", sh.Delete)
 }

@@ -10,6 +10,7 @@ require (
 	github.com/fasthttp/router v1.5.4
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/mailru/easyjson v0.9.1
 	github.com/muesli/cache2go v0.0.0-20221011235721-518229cd8021
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.13.0
@@ -18,6 +19,7 @@ require (
 	github.com/valyala/fasthttp v1.65.0
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.9
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -40,7 +42,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect

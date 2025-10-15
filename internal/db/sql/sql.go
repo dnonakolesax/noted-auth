@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgconn"
@@ -101,6 +102,7 @@ func (pc *PGXConn) Disconnect() {
 type PGXWorker struct {
 	Conn     *PGXConn
 	Requests map[string]string
+	Alive    *atomic.Bool
 }
 
 func LoadSQLRequests(dirPath string) (map[string]string, error) {
@@ -134,12 +136,14 @@ func LoadSQLRequests(dirPath string) (map[string]string, error) {
 	return sqlRequests, nil
 }
 
-func NewPGXWorker(conn *PGXConn) (*PGXWorker, error) {
+func NewPGXWorker(conn *PGXConn, alive *atomic.Bool) (*PGXWorker, error) {
 	requests := make(map[string]string)
+	alive.Store(true)
 
 	return &PGXWorker{
 		Conn:     conn,
 		Requests: requests,
+		Alive:    alive,
 	}, nil
 }
 
@@ -153,7 +157,8 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
-		pw.Conn.logger.DebugContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
+		pw.Alive.Store(false)
+		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		rdbErr := new(RDBError)
 		rdbErr.Type = pgErr.Code
@@ -174,7 +179,8 @@ func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{})
 	var pgErr *pgconn.PgError
 
 	if errors.As(err, &pgErr) {
-		pw.Conn.logger.DebugContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
+		pw.Alive.Store(false)
+		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return &PGXResponse{}, RDBError{Type: pgErr.Code, Field: pgErr.ColumnName}
 	}

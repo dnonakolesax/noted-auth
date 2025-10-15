@@ -11,7 +11,7 @@ import (
 
 const requestIDSize = 16
 
-func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+func CommonMiddleware(h fasthttp.RequestHandler, logger *slog.Logger) fasthttp.RequestHandler {
 	return fasthttp.RequestHandler(func(ctx *fasthttp.RequestCtx) {
 		requestID := ctx.Request.Header.Peek("X-Request-Id")
 		var reqID string
@@ -22,7 +22,7 @@ func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		} else {
 			reqID = string(requestID)
 		}
-		slog.Info("Received Request",
+		logger.Info("Received Request",
 			slog.String("method", string(ctx.Method())),
 			slog.String("path", string(ctx.Path())),
 			slog.String("ip", ctx.RemoteIP().String()),
@@ -32,7 +32,7 @@ func CommonMiddleware(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		now := ctx.Time().UnixMilli()
 		h(ctx)
 		end := ctx.Time().UnixMilli()
-		slog.Info("Completed request",
+		logger.Info("Completed request",
 			slog.String("method", string(ctx.Method())),
 			slog.String("path", string(ctx.Path())),
 			slog.String("requestId", reqID),

@@ -4,6 +4,7 @@ test:
 	./scripts/sqlmap.sh
 
 run:
+	mkdir -p /var/log/noted-auth
 	go run cmd/api/main.go
 
 swagger-docs:
@@ -14,3 +15,6 @@ swagger-server:
 
 lint:
 	golangci-lint -v run 
+
+easyjson:
+	easyjson -all internal/model/*.go

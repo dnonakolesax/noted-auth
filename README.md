@@ -6,10 +6,7 @@
 
 Known issues:
 - Нет PKCE
+- Проверить state на /token
 - Нет тестов
 - Не настроен CI/CD + codecov
-- Нет обработчика /healthcheck
-- Не настроен viper для vault + yml path
-- Нет easyjson
-- Логи не в файлы
-- Проверить state на /token
+- Не настроен viper + healthcheck для vault + yml path

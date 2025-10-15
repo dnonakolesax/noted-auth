@@ -57,7 +57,8 @@ import (
 // @host oauth.dnk33.com
 // @BasePath /api/v1/iam.
 func main() { //nolint:funlen // TODO: refactor
-	initLogger := logger.NewLogger("info", true, "init")
+	lcfg := configs.LoggerConfig{LogLevel: "info", LogAddSource: true}
+	initLogger := logger.NewLogger(lcfg, "init")
 	/************************************************/
 	/*               CONFIG LOADING                 */
 	/************************************************/
@@ -87,7 +88,7 @@ func main() { //nolint:funlen // TODO: refactor
 	/*                 LOGGER SETUP                 */
 	/************************************************/
 
-	appLoggers := logger.SetupLoggers(loggerConfig.LogLevel, loggerConfig.LogAddSource)
+	appLoggers := logger.SetupLoggers(loggerConfig)
 
 	/************************************************/
 	/*               SQL DB CONNECTION              */
@@ -105,7 +106,7 @@ func main() { //nolint:funlen // TODO: refactor
 	}
 	defer psqlConn.Disconnect()
 
-	psqlWorker, err := dbsql.NewPGXWorker(psqlConn)
+	psqlWorker, err := dbsql.NewPGXWorker(psqlConn, postgresHealthcheck)
 
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Error creating pgsql worker",
@@ -119,7 +120,7 @@ func main() { //nolint:funlen // TODO: refactor
 
 	redisHealtcheck := &atomic.Bool{}
 	initLogger.InfoContext(context.Background(), "Starting REDIS DB connection")
-	redisClient, err := dbredis.NewClient(redisConfig, appLoggers.Infra)
+	redisClient, err := dbredis.NewClient(redisConfig, redisHealtcheck, appLoggers.Infra)
 	initLogger.InfoContext(context.Background(), "REDIS DB connection established")
 
 	if err != nil {
@@ -157,10 +158,10 @@ func main() { //nolint:funlen // TODO: refactor
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		slog.Info("Starting metrics server", slog.Int("Port", appConfig.MetricsPort))
+		initLogger.Info("Starting metrics server", slog.Int("Port", appConfig.MetricsPort))
 		msErr := metricsServer.ListenAndServe()
 		if msErr != nil && msErr != http.ErrServerClosed {
-			slog.Error(fmt.Sprintf("Error starting metrics server: %v", err))
+			initLogger.Error(fmt.Sprintf("Error starting metrics server: %v", err))
 			panic(err)
 		}
 	}()
@@ -171,7 +172,7 @@ func main() { //nolint:funlen // TODO: refactor
 
 	keycloakHealthcheck := &atomic.Bool{}
 	httpClient := httpclient.NewWithRetry(kcConfig.InterRealmAddress+kcConfig.TokenEndpoint,
-		httpClientConfig, tokenRequestMetrics, appLoggers.HTTPc)
+		httpClientConfig, tokenRequestMetrics, keycloakHealthcheck, appLoggers.HTTPc)
 
 	/************************************************/
 	/*                  REPOS INIT                  */
@@ -236,11 +237,11 @@ func main() { //nolint:funlen // TODO: refactor
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		slog.Info("Starting GRPC server", slog.Int("Port", appConfig.GRPCPort))
+		initLogger.Info("Starting GRPC server", slog.Int("Port", appConfig.GRPCPort))
 		err = grpcSrv.Serve(listener)
 
 		if err != nil {
-			slog.Error(fmt.Sprintf("Error starting grpc server: %v", err))
+			initLogger.Error(fmt.Sprintf("Error starting grpc server: %v", err))
 			panic(err)
 		}
 	}()
@@ -252,7 +253,7 @@ func main() { //nolint:funlen // TODO: refactor
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	srv := fasthttp.Server{
-		Handler: middlewares.CommonMiddleware(router.Router().Handler),
+		Handler: middlewares.CommonMiddleware(router.Router().Handler, appLoggers.HTTP),
 
 		ReadTimeout:  serverConfig.ReadTimeout,
 		WriteTimeout: serverConfig.WriteTimeout,
@@ -272,10 +273,10 @@ func main() { //nolint:funlen // TODO: refactor
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		slog.Info("Starting HTTP server", slog.Int("Port", appConfig.Port))
+		initLogger.Info("Starting HTTP server", slog.Int("Port", appConfig.Port))
 		httpErr := srv.ListenAndServe(":" + strconv.Itoa(appConfig.Port))
 		if httpErr != nil {
-			slog.Error(fmt.Sprintf("Couldn't start server: %v", err))
+			initLogger.Error(fmt.Sprintf("Couldn't start server: %v", err))
 		}
 	}()
 

@@ -1,7 +1,6 @@
 package healthcheck
 
 import (
-	"encoding/json"
 	"log/slog"
 	"sync/atomic"
 
@@ -44,7 +43,7 @@ func (hh *Handler) Handle(ctx *fasthttp.RequestCtx) {
 		VaultAlive:    v,
 	}
 
-	bts, err := json.Marshal(dto)
+	bts, err := dto.MarshalJSON()
 
 	if err != nil {
 		hh.logger.Error("Error marshaling healtcheck: ", slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -53,6 +52,7 @@ func (hh *Handler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	ctx.Response.SetBody(bts)
+	ctx.Response.Header.SetContentType(consts.ApplicationJSONContentType)
 
 	if r && p && k && v {
 		ctx.SetStatusCode(fasthttp.StatusOK)
@@ -62,6 +62,6 @@ func (hh *Handler) Handle(ctx *fasthttp.RequestCtx) {
 }
 
 func (hh *Handler) RegisterRoutes(apiGroup *router.Group) {
-	group := apiGroup.Group("/users")
-	group.GET("", hh.Handle)
+	group := apiGroup.Group("/healthcheck")
+	group.GET("/", hh.Handle)
 }

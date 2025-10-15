@@ -21,3 +21,7 @@ const (
 const (
 	HTTPHeaderXRequestID = "X-Request-Id"
 )
+
+const (
+	ApplicationJSONContentType = "application/json"
+)

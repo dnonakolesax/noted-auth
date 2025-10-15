@@ -3,10 +3,15 @@ package logger
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/dnonakolesax/noted-auth/internal/configs"
 )
 
 type Loggers struct {
@@ -18,12 +23,20 @@ type Loggers struct {
 	Infra   *slog.Logger
 }
 
-func NewLogger(cfgLogLevel string, addSource bool, layer string) *slog.Logger {
-	commitHash, ok := os.LookupEnv("CI_COMMIT_HASH")
+func NewLogger(cfg configs.LoggerConfig, layer string) *slog.Logger {
+	logFile := &lumberjack.Logger{
+		Filename:   fmt.Sprintf("/var/log/noted-auth/%s.log", layer),
+		MaxSize:    cfg.LogMaxFileSize,
+		MaxBackups: cfg.LogMaxBackups,
+		MaxAge:     cfg.LogMaxAge,
+		Compress:   true,
+	}
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
+	commitHash, ok := os.LookupEnv("CI_COMMIT_HASH")
 	if !ok {
 		hash, err := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD").Output()
 		if err != nil {
@@ -40,7 +53,7 @@ func NewLogger(cfgLogLevel string, addSource bool, layer string) *slog.Logger {
 
 	var logLevel slog.Level
 
-	switch cfgLogLevel {
+	switch cfg.LogLevel {
 	case "debug":
 		logLevel = slog.LevelDebug
 	case "info":
@@ -53,8 +66,8 @@ func NewLogger(cfgLogLevel string, addSource bool, layer string) *slog.Logger {
 		panic(fmt.Sprintf("Unknown log level: %s. Known levels: debug, info, warn, error", logLevel))
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: addSource,
+	handler := slog.NewJSONHandler(multiWriter, &slog.HandlerOptions{
+		AddSource: cfg.LogAddSource,
 		Level:     logLevel,
 	})
 	logger := slog.New(handler).With(
@@ -69,13 +82,13 @@ func NewLogger(cfgLogLevel string, addSource bool, layer string) *slog.Logger {
 	return logger
 }
 
-func SetupLoggers(cfgLogLevel string, addSource bool) *Loggers {
+func SetupLoggers(cfg configs.LoggerConfig) *Loggers {
 	return &Loggers{
-		HTTP:    NewLogger(cfgLogLevel, addSource, "http-server"),
-		HTTPc:   NewLogger(cfgLogLevel, addSource, "http-client"),
-		GRPC:    NewLogger(cfgLogLevel, addSource, "grpc"),
-		Service: NewLogger(cfgLogLevel, addSource, "service"),
-		Repo:    NewLogger(cfgLogLevel, addSource, "repo"),
-		Infra:   NewLogger(cfgLogLevel, addSource, "infra"),
+		HTTP:    NewLogger(cfg, "http-server"),
+		HTTPc:   NewLogger(cfg, "http-client"),
+		GRPC:    NewLogger(cfg, "grpc"),
+		Service: NewLogger(cfg, "service"),
+		Repo:    NewLogger(cfg, "repo"),
+		Infra:   NewLogger(cfg, "infra"),
 	}
 }

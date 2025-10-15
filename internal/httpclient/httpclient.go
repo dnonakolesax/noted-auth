@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/dnonakolesax/noted-auth/internal/configs"
@@ -34,6 +35,7 @@ type HTTPClient struct {
 	retries  configs.HTTPRetryPolicyConfig
 	metrics  *metrics.HTTPRequestMetrics
 	logger   *slog.Logger
+	Alive    *atomic.Bool
 }
 
 type HTTPRequestParams struct {
@@ -43,7 +45,8 @@ type HTTPRequestParams struct {
 }
 
 func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
-	reqMetrics *metrics.HTTPRequestMetrics, logger *slog.Logger) *HTTPClient {
+	reqMetrics *metrics.HTTPRequestMetrics, alive *atomic.Bool, logger *slog.Logger) *HTTPClient {
+	alive.Store(true)
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -61,6 +64,7 @@ func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
 		retries:  config.RetryPolicy,
 		metrics:  reqMetrics,
 		logger:   logger,
+		Alive:    alive,
 	}
 }
 
@@ -100,6 +104,7 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 		}
 
 		if err := sleepOrCtx(ctx, hc.backoffDelay(attempt)); err != nil {
+			hc.Alive.Store(false)
 			return nil, err
 		}
 	}
@@ -127,6 +132,7 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	if err != nil {
 		hc.logger.ErrorContext(ctx, "Error executing http-request", slog.String(consts.ErrorLoggerKey, err.Error()),
 			slog.String(methodLoggerKey, method))
+		hc.Alive.Store(false)
 		return nil, err
 	}
 
@@ -173,6 +179,7 @@ func (hc *HTTPClient) shouldRetry(err error, resp *http.Response, attempt int) b
 	}
 
 	if err != nil {
+		hc.Alive.Store(false)
 		return hc.shouldRetryError(err)
 	}
 
@@ -189,6 +196,7 @@ func (hc *HTTPClient) shouldRetryError(err error) bool {
 	}
 	var nerr net.Error
 	if errors.As(err, &nerr) {
+		hc.Alive.Store(false)
 		return nerr.Timeout()
 	}
 	return true

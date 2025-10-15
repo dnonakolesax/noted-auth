@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"github.com/fasthttp/router"
@@ -65,7 +64,7 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	userJSON, err := json.Marshal(user)
+	userJSON, err := user.MarshalJSON()
 
 	if err != nil {
 		uh.logger.ErrorContext(contex, "could not marshal user", slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -74,7 +73,7 @@ func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
 	}
 
 	ctx.Response.SetBody(userJSON)
-	ctx.Response.Header.Set(fasthttp.HeaderContentType, "application/json")
+	ctx.Response.Header.Set(fasthttp.HeaderContentType, consts.ApplicationJSONContentType)
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
 }
 
