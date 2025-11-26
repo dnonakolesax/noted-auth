@@ -9,7 +9,7 @@ import (
 const (
 	realmClientIDKey               = "realm.client-id"
 	realmClientIDDefault           = "webpage"
-	realmClientSecretKey           = "realm_client_secret"
+	realmClientSecretKey           = "secret/keycloak:clientsecret"
 	realmRedirectURLKey            = "realm.redirect-url"
 	realmAddressKey                = "realm.base-url"
 	realmInterAddressKey           = "realm.inter-url"

@@ -4,7 +4,7 @@ service:
   port: 8800
   grpc-port: 8801
   metrics-port: 8802
-  allowed-redirect: https://dnk33.com/ # Базовый URL, на который можно редиректить после авторизации (будет приниматься <allowed-redirect>/*)
+  allowed-redirect: http://127.0.0.1:8800/ # Базовый URL, на который можно редиректить после авторизации (будет приниматься <allowed-redirect>/*)
   log-level: debug
   log-add-source: true
   log-timeout: 10s
@@ -14,7 +14,7 @@ service:
   metrics-endpoint: /metrics
 
 postgres:
-  address: gobddocker-postgres-1
+  address: postgres_container
   port: 5432
   database: keycloak
   user: kopilka
@@ -28,20 +28,20 @@ postgres:
   requests-path: "./db/requests/"
 
 redis:
-  address: gobddocker-redis-1
+  address: na-redis
   port: 6379
   request-timeout: 10s
 
 realm:
   base-url: http://127.0.0.1:8080/realms/noted/protocol/openid-connect # URL реалма keycloak
-  inter-url: http://eloquent_noether:8080/realms/noted/protocol/openid-connect # Внутренний  URL реалма keycloak
+  inter-url: http://eager_faraday:8080/realms/noted/protocol/openid-connect # Внутренний  URL реалма keycloak
   client-id: noted-webpage # ID клиента в keycloak
   redirect-url: http://127.0.0.1:8800/api/v1/iam/openid-connect/token # URL для редиректа после авторизации
   te-timeout: 10s # Таймаут ожидания ответа от POST-запроса на /token (секунды)
   state-length: 32 # Длина параметра state (байты)
-  code-verifier-length: 128 # Длина параметра code_verifier (байты)
-  id: a2771237-6233-41ef-a997-840a2eecc7ab
-  post-logout-redirect-uri: https://dnk33.com/
+  code-verifier-length: 88 # Длина параметра code_verifier (байты)
+  id: 4bc5f46b-0f00-49ae-8564-8d5215346862
+  post-logout-redirect-uri: https://127.0.0.1:8800/api/v1/iam/healthcheck
   auth-endpoint: /auth
   token-endpoint: /token
   logout-endpoint: /logout

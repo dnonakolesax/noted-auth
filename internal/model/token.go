@@ -8,6 +8,7 @@ type TokenDTO struct { //nolint:recvcheck // autogen issues
 	TokenType       string `json:"token_type"`
 	NotBeforePolicy int    `json:"not-before-policy"`
 	SessionState    string `json:"session_state"`
+	State           string `json:"state"`
 	Scope           string `json:"scope"`
 	ReturnURL       string `json:"return_url"`
 }

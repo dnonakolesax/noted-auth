@@ -23,7 +23,7 @@ type Loggers struct {
 	Infra   *slog.Logger
 }
 
-func NewLogger(cfg configs.LoggerConfig, layer string) *slog.Logger {
+func NewLogger(cfg *configs.LoggerConfig, layer string) *slog.Logger {
 	logFile := &lumberjack.Logger{
 		Filename:   fmt.Sprintf("/var/log/noted-auth/%s.log", layer),
 		MaxSize:    cfg.LogMaxFileSize,
@@ -82,7 +82,7 @@ func NewLogger(cfg configs.LoggerConfig, layer string) *slog.Logger {
 	return logger
 }
 
-func SetupLoggers(cfg configs.LoggerConfig) *Loggers {
+func SetupLoggers(cfg *configs.LoggerConfig) *Loggers {
 	return &Loggers{
 		HTTP:    NewLogger(cfg, "http-server"),
 		HTTPc:   NewLogger(cfg, "http-client"),

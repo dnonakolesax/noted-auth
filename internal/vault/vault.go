@@ -3,31 +3,49 @@ package vault
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 
+	"github.com/dnonakolesax/viper"
 	"github.com/hashicorp/vault-client-go"
 	"github.com/hashicorp/vault-client-go/schema"
 
-	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/dnonakolesax/noted-auth/internal/consts"
 )
 
-func SetupVault(cfg *configs.VaultConfig, logger *slog.Logger) *vault.Client {
-	vClient, err := vault.New(vault.WithAddress(cfg.Address))
+type Client struct {
+	Client      *vault.Client
+	Healthcheck *atomic.Bool
+	UpdateChan  chan viper.KVEntry
+}
+
+type Credentials struct {
+	Login    string
+	Password string
+}
+
+func SetupVault(addr string, creds *Credentials, logger *slog.Logger) (*Client, error) {
+	vClient, err := vault.New(vault.WithAddress(addr))
 	if err != nil {
 		logger.Error("Coulndt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
-		panic(err)
+		return nil, err
 	}
-	resp, err := vClient.Auth.UserpassLogin(context.Background(), cfg.Login, schema.UserpassLoginRequest{
-		Password: cfg.Password,
+	resp, err := vClient.Auth.UserpassLogin(context.Background(), creds.Login, schema.UserpassLoginRequest{
+		Password: creds.Password,
 	})
 	if err != nil {
 		logger.Error("Coulndt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
-		panic(err)
+		return nil, err
 	}
 	err = vClient.SetToken(resp.Auth.ClientToken)
 	if err != nil {
 		logger.Error("Coulndt set vault token", slog.String(consts.ErrorLoggerKey, err.Error()))
-		panic(err)
+		return nil, err
 	}
-	return vClient
+
+	updateChan := make(chan viper.KVEntry)
+	return &Client{
+		Client:      vClient,
+		Healthcheck: &atomic.Bool{},
+		UpdateChan:  updateChan,
+	}, nil
 }

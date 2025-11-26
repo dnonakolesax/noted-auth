@@ -87,6 +87,17 @@ func (ah *Handler) handleAuth(ctx *fasthttp.RequestCtx) {
 func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
+
+	sentErr := ctx.QueryArgs().Peek("error")
+
+	if sentErr != nil {
+		ah.logger.ErrorContext(ctx, "Error from keycloak", 
+			slog.String("Description", ctx.QueryArgs().String()))
+
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return	
+	}
+
 	state := ctx.QueryArgs().Peek("state")
 
 	if state == nil {
@@ -122,6 +133,8 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	atCookie.SetMaxAge(tokenDTO.ExpiresIn)
 	atCookie.SetHTTPOnly(true)
 	atCookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
+	atCookie.SetPath("/")
+	println(tokenDTO.AccessToken)
 
 	rtCookie := fasthttp.Cookie{}
 	rtCookie.SetKey(consts.RTCookieKey)
@@ -129,6 +142,7 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	rtCookie.SetMaxAge(tokenDTO.RefreshExp)
 	rtCookie.SetHTTPOnly(true)
 	rtCookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
+	rtCookie.SetPath("/")
 
 	ctx.Response.Header.SetCookie(&atCookie)
 	ctx.Response.Header.SetCookie(&rtCookie)

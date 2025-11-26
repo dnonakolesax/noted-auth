@@ -73,6 +73,12 @@ func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexe
 			} else {
 				out.SessionState = string(in.String())
 			}
+		case "state":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.State = string(in.String())
+			}
 		case "scope":
 			if in.IsNull() {
 				in.Skip()
@@ -133,6 +139,11 @@ func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwri
 		const prefix string = ",\"session_state\":"
 		out.RawString(prefix)
 		out.String(string(in.SessionState))
+	}
+	{
+		const prefix string = ",\"state\":"
+		out.RawString(prefix)
+		out.String(string(in.State))
 	}
 	{
 		const prefix string = ",\"scope\":"

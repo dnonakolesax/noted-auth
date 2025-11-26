@@ -2,6 +2,7 @@ package configs
 
 import (
 	"time"
+	"strings"
 
 	"github.com/dnonakolesax/viper"
 )
@@ -17,6 +18,7 @@ const (
 	postgresPasswordKey         = "postgres_password"
 	postgresRequestsPathKey     = "postgres.requests-path"
 	postgresDefaultRequestsPath = "./sql_requests"
+	postgresRolePath            = "database/kc-selector"
 )
 
 const (
@@ -41,7 +43,7 @@ const (
 	RedisDefaultAddress        = "redis"
 	RedisPortKey               = "redis.port"
 	RedisDefaultPort           = 6379
-	RedisPasswordKey           = "redis_password"
+	RedisPasswordKey           = "secret/redis:password"
 	RedisRequestTimeoutKey     = "redis.request-timeout"
 	RedisDefaultRequestTimeout = 10 * time.Second
 )
@@ -91,8 +93,10 @@ func (rc *RDBConfig) Load(v *viper.Viper) {
 	rc.Address = v.GetString(postgresAddressKey)
 	rc.Port = v.GetUint(postgresPortKey)
 	rc.DBName = v.GetString(postgresDBNameKey)
-	rc.Login = v.GetString(postgresLoginKey)
-	rc.Password = v.GetString(postgresPasswordKey)
+	roleString := v.GetString(postgresRolePath)
+	roleStringSplitted := strings.Split(roleString, ":")
+	rc.Login = roleStringSplitted[0]
+	rc.Password = roleStringSplitted[1]
 	rc.RequestsPath = v.GetString(postgresRequestsPathKey)
 
 	rc.ConnTimeout = v.GetDuration(postgresConnTimeoutKey)
@@ -107,7 +111,7 @@ func (rc *RDBConfig) Load(v *viper.Viper) {
 func (rc *RedisConfig) SetDefaults(v *viper.Viper) {
 	v.SetDefault(RedisAddressKey, RedisDefaultAddress)
 	v.SetDefault(RedisPortKey, RedisDefaultPort)
-	v.SetDefault(RedisPasswordKey, nil)
+	v.SetDefault(RedisPasswordKey, "")
 	v.SetDefault(RedisRequestTimeoutKey, RedisDefaultRequestTimeout)
 }
 

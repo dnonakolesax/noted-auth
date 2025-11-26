@@ -30,6 +30,10 @@ COPY --from=builder /etc/passwd /etc/passwd
 # Запускаем от имени этого пользователя
 USER auth-runner
 
+RUN mkdir -p  /noted-auth/db/requests
+RUN mkdir -p  /noted-auth/cofigs
 COPY --from=builder /noted-auth/bin/noted-auth /noted-auth
+COPY --from=builder /noted-auth/configs /configs
+COPY --from=builder /noted-auth/db/requests /db/requests
 
 CMD ["/noted-auth"]

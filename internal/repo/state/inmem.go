@@ -18,8 +18,10 @@ type InMemStateRepo struct {
 }
 
 func NewInMemStateRepo(logger *slog.Logger) *InMemStateRepo {
+	client := cache2go.Cache("state")
 	return &InMemStateRepo{
 		logger: logger,
+		client: client,
 	}
 }
 

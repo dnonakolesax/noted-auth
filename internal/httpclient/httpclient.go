@@ -44,9 +44,8 @@ type HTTPRequestParams struct {
 	pathParam string
 }
 
-func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
-	reqMetrics *metrics.HTTPRequestMetrics, alive *atomic.Bool, logger *slog.Logger) *HTTPClient {
-	alive.Store(true)
+func NewWithRetry(endpoint string, config *configs.HTTPClientConfig,
+	reqMetrics *metrics.HTTPRequestMetrics, alive *atomic.Bool, logger *slog.Logger) (*HTTPClient, error) {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -58,7 +57,7 @@ func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
 		IdleConnTimeout:     config.IdleConnTimeout,
 	}
 
-	return &HTTPClient{
+	c := &HTTPClient{
 		c:        &http.Client{Transport: tr, Timeout: config.RequestTimeout},
 		endpoint: endpoint,
 		retries:  config.RetryPolicy,
@@ -66,6 +65,23 @@ func NewWithRetry(endpoint string, config configs.HTTPClientConfig,
 		logger:   logger,
 		Alive:    alive,
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), config.RequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "HEAD",
+		endpoint, strings.NewReader(""))
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if r.StatusCode != http.StatusMethodNotAllowed {
+		return nil, errors.New("error heading keycloak: " + r.Status)
+	}
+	alive.Store(true)
+	return c, nil
 }
 
 func (hc *HTTPClient) observeStatusCode(code int) {
@@ -114,7 +130,12 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 
 func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	params HTTPRequestParams) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), hc.c.Timeout)
+	defer cancel()
 	req, err := hc.createRequest(ctx, method, params)
+	req.Header.Add("Content-type", "application/json")
+	req.Header.Add("Authorization", "Bearer " + params.token)
+	println("Bearer " + params.token)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +177,13 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 		return nil, err
 	}
 
+	if method == "GET" {
+
+	req.Header.Set(HTTPHeaderContentType, "application/json")
+	} else {
+		
 	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeURLEncoded)
+	}
 	if params.token != consts.EmptyString {
 		req.Header.Set(HTTPHeaderAuthorization, fmt.Sprintf("%s%s", HTTPAuthorizationPrefix, params.token))
 	}

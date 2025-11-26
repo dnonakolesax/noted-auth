@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dnonakolesax/viper"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -102,9 +101,10 @@ func (pc *PGXConn) Disconnect() {
 }
 
 type PGXWorker struct {
-	Conn     *PGXConn
-	Requests map[string]string
-	Alive    *atomic.Bool
+	Conn         *PGXConn
+	ConnUpdating *atomic.Bool
+	Requests     map[string]string
+	Alive        *atomic.Bool
 }
 
 func LoadSQLRequests(dirPath string) (map[string]string, error) {
@@ -138,7 +138,7 @@ func LoadSQLRequests(dirPath string) (map[string]string, error) {
 	return sqlRequests, nil
 }
 
-func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan viper.KVEntry) (*PGXWorker, error) {
+func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan string) (*PGXWorker, error) {
 	requests := make(map[string]string)
 	alive.Store(true)
 
@@ -146,6 +146,7 @@ func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan viper.KVEntr
 		Conn:     conn,
 		Requests: requests,
 		Alive:    alive,
+		ConnUpdating: &atomic.Bool{},
 	}
 
 	go worker.MonitorVault(vaultChan)
@@ -153,10 +154,10 @@ func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan viper.KVEntr
 	return worker, nil
 }
 
-func (pw *PGXWorker) MonitorVault(vaultChan chan viper.KVEntry) {
+func (pw *PGXWorker) MonitorVault(vaultChan chan string) {
 	for newPassword := range vaultChan {
 		newConf := pw.Conn.conf
-		lp := strings.Split(newPassword.Value, ":")
+		lp := strings.Split(newPassword, ":")
 		if len(lp) != 2 { //nolint:mnd // 2 потому что логин и пароль
 			pw.Conn.logger.Error("invalid password format received from vault")
 			continue
@@ -165,11 +166,13 @@ func (pw *PGXWorker) MonitorVault(vaultChan chan viper.KVEntry) {
 		newConf.Password = lp[1]
 		newConn, err := NewPGXConn(newConf, pw.Conn.logger)
 		if err != nil {
-			pw.Conn.logger.Error("Error creating new pgsql conn from vauld credentials",
+			pw.Conn.logger.Error("Error creating new pgsql conn from vault credentials",
 				slog.String(consts.ErrorLoggerKey, err.Error()))
 			continue
 		}
+		for !pw.ConnUpdating.CompareAndSwap(false, true) {}
 		pw.Conn = newConn
+		pw.ConnUpdating.Store(false)
 	}
 }
 
@@ -178,6 +181,9 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 	defer cancel()
 
 	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
+	if pw.ConnUpdating.Load() {
+		for pw.ConnUpdating.Load() {}
+	}
 	_, err := pw.Conn.pool.Exec(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
@@ -200,6 +206,9 @@ func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{})
 	timeCtx, cancel := context.WithTimeout(ctx, pw.Conn.requestTimeout)
 	defer cancel()
 	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
+	if pw.ConnUpdating.Load() {
+		for pw.ConnUpdating.Load() {}
+	}
 	result, err := pw.Conn.pool.Query(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError

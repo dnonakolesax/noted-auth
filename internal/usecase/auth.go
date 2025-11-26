@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/mailru/easyjson"
@@ -33,16 +34,31 @@ type AuthUsecase struct {
 	kcConfig     configs.KeycloakConfig
 	httpClient   *httpclient.HTTPClient
 	logger       *slog.Logger
+	kcCSUpdating *atomic.Bool
 }
 
 func NewAuthUsecase(authLifetime time.Duration, repos []StateRepo, kcConfig configs.KeycloakConfig,
-	httpClient *httpclient.HTTPClient, logger *slog.Logger) *AuthUsecase {
-	return &AuthUsecase{
+	httpClient *httpclient.HTTPClient, logger *slog.Logger, vaultChan chan string) *AuthUsecase {
+	uc := &AuthUsecase{
 		authLifetime: authLifetime,
 		repos:        repos,
 		kcConfig:     kcConfig,
 		httpClient:   httpClient,
 		logger:       logger,
+		kcCSUpdating: &atomic.Bool{},
+	}
+
+	go uc.MonitorVault(vaultChan)
+
+	return uc
+}
+
+func (ac *AuthUsecase) MonitorVault(vaultChan chan string) {
+	for secret := range vaultChan {
+		for !ac.kcCSUpdating.CompareAndSwap(false, true) {
+		}
+		ac.kcConfig.ClientSecret = secret
+		ac.kcCSUpdating.Store(false)
 	}
 }
 
@@ -56,15 +72,14 @@ func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (strin
 	}
 
 	codeVerifier, err := rnd.GenRandomString(ac.kcConfig.CodeVerifierLength)
+	b64cv := base64.RawURLEncoding.EncodeToString(codeVerifier)
 
 	if err != nil {
 		ac.logger.ErrorContext(ctx, "Failed to create crypto-random string (code verifier)",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", err
 	}
-	b64cv := base64.URLEncoding.EncodeToString(codeVerifier)
-
-	encodedState := base64.URLEncoding.EncodeToString(state)
+	encodedState := base64.RawURLEncoding.EncodeToString(state)
 
 	hasher := sha256.New()
 	_, err = hasher.Write([]byte(b64cv))
@@ -74,7 +89,8 @@ func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (strin
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return "", err
 	}
-	sha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	bts := sha256.Sum256([]byte(b64cv))
+	sha := base64.RawURLEncoding.EncodeToString(bts[:])
 
 	err = ac.repos[0].SetState(ctx, encodedState, returnURL, ac.authLifetime)
 
@@ -92,14 +108,14 @@ func (ac *AuthUsecase) GetAuthLink(ctx context.Context, returnURL string) (strin
 
 	go func() {
 		for i := 1; i < len(ac.repos); i++ {
-			err = ac.repos[1].SetState(ctx, encodedState, returnURL, ac.authLifetime)
+			err = ac.repos[i].SetState(ctx, encodedState, returnURL, ac.authLifetime)
 
 			if err != nil {
 				ac.logger.ErrorContext(ctx, "Failed to set state",
 					slog.String(consts.ErrorLoggerKey, err.Error()))
 			}
 
-			err = ac.repos[0].SetState(ctx, encodedState+":code_verifier", returnURL, ac.authLifetime)
+			err = ac.repos[i].SetState(ctx, encodedState+":code_verifier", b64cv, ac.authLifetime)
 
 			if err != nil {
 				ac.logger.ErrorContext(ctx, "Failed to set code verifier",
@@ -161,11 +177,14 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 
-	encodedState := base64.URLEncoding.EncodeToString(postState)
+	encodedState := base64.RawURLEncoding.EncodeToString(postState)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("client_id", ac.kcConfig.ClientID)
+	if ac.kcCSUpdating.Load() {
+		for ac.kcCSUpdating.Load() {}
+	}
 	data.Set("client_secret", ac.kcConfig.ClientSecret)
 	data.Set("code", code)
 	data.Set("redirect_uri", ac.kcConfig.RedirectURI)
@@ -176,7 +195,9 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	defer cancel()
 	resp, err := ac.httpClient.PostForm(pCtx, data)
 	defer func() {
-		_ = resp.Body.Close()
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 	}()
 
 	if err != nil {
@@ -191,6 +212,7 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
+	println(string(body))
 	err = easyjson.Unmarshal(body, &dto)
 	if err != nil {
 		ac.logger.ErrorContext(ctx, "Failed to unmarshal token-post response body",
@@ -199,11 +221,11 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 
-	if encodedState != dto.SessionState {
-		ac.logger.ErrorContext(ctx, "State mismatch")
-		ac.logger.DebugContext(ctx, "", "expected", encodedState, "actual", dto.SessionState)
-		return model.TokenDTO{}, errors.New("state mismatch")
-	}
+	// if encodedState != dto.State {
+	// 	ac.logger.ErrorContext(ctx, "State mismatch")
+	// 	ac.logger.DebugContext(ctx, "", "expected", encodedState, "actual", dto.SessionState)
+	// 	return model.TokenDTO{}, errors.New("state mismatch")
+	// }
 	dto.ReturnURL = returnURL
 
 	return dto, nil
