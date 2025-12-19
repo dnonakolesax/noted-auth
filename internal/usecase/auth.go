@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -183,7 +186,8 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	data.Set("grant_type", "authorization_code")
 	data.Set("client_id", ac.kcConfig.ClientID)
 	if ac.kcCSUpdating.Load() {
-		for ac.kcCSUpdating.Load() {}
+		for ac.kcCSUpdating.Load() {
+		}
 	}
 	data.Set("client_secret", ac.kcConfig.ClientSecret)
 	data.Set("code", code)
@@ -212,6 +216,7 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
+	ac.logger.DebugContext(ctx, "Token-post response body", string(body))
 	println(string(body))
 	err = easyjson.Unmarshal(body, &dto)
 	if err != nil {
@@ -237,4 +242,81 @@ func (ac *AuthUsecase) GetLogoutLink(ctx context.Context) string {
 		ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI)
 	ac.logger.DebugContext(ctx, "Created logout link", slog.String("link", link), trace)
 	return link
+}
+
+func (ac *AuthUsecase) isTokenValid(token string) (model.IntrospectDTO, error) {
+	url := ac.kcConfig.RealmAddress + "/token/introspect"
+
+	req, _ := http.NewRequest("POST", url, strings.NewReader("token="+token))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(ac.kcConfig.ClientID, ac.kcConfig.ClientSecret)
+
+	client := &http.Client{Timeout: time.Second * 10}
+	resp, err := client.Do(req)
+	if err != nil {
+		return model.IntrospectDTO{}, err
+	}
+	defer resp.Body.Close()
+
+	var result model.IntrospectDTO
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return model.IntrospectDTO{}, err
+	}
+
+	return result, nil
+}
+
+func (ac *AuthUsecase) refreshTokens(refreshToken string) (model.TokenDTO, error) {
+	url := ac.kcConfig.RealmAddress + "/token"
+
+	body := strings.NewReader(
+		"grant_type=refresh_token&refresh_token=" + refreshToken +
+			"&client_id=" + ac.kcConfig.ClientID +
+			"&client_secret=" + ac.kcConfig.ClientSecret,
+	)
+
+	req, _ := http.NewRequest("POST", url, body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: time.Second * 10}
+	resp, err := client.Do(req)
+	if err != nil {
+		return model.TokenDTO{}, err
+	}
+	defer resp.Body.Close()
+
+	var tokens model.TokenDTO
+	err = json.NewDecoder(resp.Body).Decode(&tokens)
+	return tokens, err
+}
+
+func (ac *AuthUsecase) GetUserID(ctx context.Context, at string, rt string) (model.TokenGRPCDTO, error) {
+
+	intro, err := ac.isTokenValid(at)
+
+	if err != nil {
+		return model.TokenGRPCDTO{}, err
+	}
+
+	if !intro.Active {
+		newTokens, err := ac.refreshTokens(rt)
+		if err != nil {
+			ac.logger.ErrorContext(ctx, "failed to obtain new tokens",
+				slog.String(consts.ErrorLoggerKey, err.Error()))
+			return model.TokenGRPCDTO{
+				UserID:       intro.Subject,
+				AccessToken:  newTokens.AccessToken,
+				RefreshToken: newTokens.RefreshToken,
+				ExpiresIn:    newTokens.ExpiresIn,
+				RefreshExp:   newTokens.RefreshExp,
+			}, err
+		}
+	}
+
+	return model.TokenGRPCDTO{
+		UserID:       intro.Subject,
+		AccessToken:  "",
+		RefreshToken: "",
+	}, nil
 }

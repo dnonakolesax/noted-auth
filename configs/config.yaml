@@ -14,7 +14,7 @@ service:
   metrics-endpoint: /metrics
 
 postgres:
-  address: postgres_container
+  address: kc_postgres
   port: 5432
   database: keycloak
   user: kopilka
@@ -34,7 +34,7 @@ redis:
 
 realm:
   base-url: http://127.0.0.1:8080/realms/noted/protocol/openid-connect # URL реалма keycloak
-  inter-url: http://eager_faraday:8080/realms/noted/protocol/openid-connect # Внутренний  URL реалма keycloak
+  inter-url: http://keycloak-ru:8080/realms/noted/protocol/openid-connect # Внутренний  URL реалма keycloak
   client-id: noted-webpage # ID клиента в keycloak
   redirect-url: http://127.0.0.1:8800/api/v1/iam/openid-connect/token # URL для редиректа после авторизации
   te-timeout: 10s # Таймаут ожидания ответа от POST-запроса на /token (секунды)

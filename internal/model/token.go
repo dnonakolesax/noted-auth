@@ -12,3 +12,25 @@ type TokenDTO struct { //nolint:recvcheck // autogen issues
 	Scope           string `json:"scope"`
 	ReturnURL       string `json:"return_url"`
 }
+
+type TokenGRPCDTO struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int
+	RefreshExp   int
+	UserID       string
+}
+
+type IntrospectDTO struct {
+	Active  bool   `json:"active"`
+	Subject string `json:"sub"`
+}
+
+func (td *TokenGRPCDTO) ToTokenDTO () TokenDTO {
+	return TokenDTO{
+		AccessToken: td.AccessToken,
+		RefreshToken: td.RefreshToken,
+		ExpiresIn: td.ExpiresIn,
+		RefreshExp: td.RefreshExp,
+	}
+}

@@ -66,7 +66,7 @@ func (a *App) SetupLayers() (error) {
 
 	authHandler := authDelivery.NewAuthHandler(a.configs.Service.AllowedRedirect, a.configs.Service.AllowedRedirect,
 		stateUsecase, a.loggers.HTTP)
-	userHandler := userDelivery.NewUserHandler(userUsecase, a.loggers.HTTP)
+	userHandler := userDelivery.NewUserHandler(userUsecase, a.loggers.HTTP, stateUsecase)
 	sessionHandler := sessionDelivery.NewSessionHandler(sessionUsecase, a.loggers.HTTP)
 	healthcheckHandler := healthDelivery.NewHealthCheckHandler(a.health.Redis, a.health.Postgres,
 		 a.health.Keycloak, a.health.Vault, a.loggers.HTTP)

@@ -78,7 +78,7 @@ func (a *App) SetupComponents() (error) {
 	/************************************************/
 
 	a.initLogger.InfoContext(context.Background(), "Creating HTTP client for sessions")
-	httpClient2, err := httpclient.NewWithRetry("http://eager_faraday:8080/realms/noted/account/sessions/devices/",
+	httpClient2, err := httpclient.NewWithRetry("http://keycloak-ru:8080/realms/noted/account/sessions/devices/",
 		a.configs.HTTPClient, a.metrics.TokenGetMetrics, a.health.Keycloak, a.loggers.HTTPc)
 
 	if err != nil {

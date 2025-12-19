@@ -10,6 +10,7 @@ import (
 	"github.com/valyala/fasthttp"
 
 	"github.com/dnonakolesax/noted-auth/internal/consts"
+	"github.com/dnonakolesax/noted-auth/internal/cookies"
 	"github.com/dnonakolesax/noted-auth/internal/errorvals"
 	"github.com/dnonakolesax/noted-auth/internal/model"
 )
@@ -18,6 +19,7 @@ type usecase interface {
 	GetAuthLink(ctx context.Context, retunURL string) (string, error)
 	GetToken(ctx context.Context, state string, token string) (model.TokenDTO, error)
 	GetLogoutLink(ctx context.Context) string
+	GetUserID(ctx context.Context, at string, rt string) (model.TokenGRPCDTO, error)
 }
 
 type Handler struct {
@@ -127,29 +129,17 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	atCookie := fasthttp.Cookie{}
-	atCookie.SetKey(consts.ATCookieKey)
-	atCookie.SetValue(tokenDTO.AccessToken)
-	atCookie.SetMaxAge(tokenDTO.ExpiresIn)
-	atCookie.SetHTTPOnly(true)
-	atCookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
-	atCookie.SetPath("/")
-	println(tokenDTO.AccessToken)
-
-	rtCookie := fasthttp.Cookie{}
-	rtCookie.SetKey(consts.RTCookieKey)
-	rtCookie.SetValue(tokenDTO.RefreshToken)
-	rtCookie.SetMaxAge(tokenDTO.RefreshExp)
-	rtCookie.SetHTTPOnly(true)
-	rtCookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
-	rtCookie.SetPath("/")
-
-	ctx.Response.Header.SetCookie(&atCookie)
-	ctx.Response.Header.SetCookie(&rtCookie)
+	cookies.SetupAccessCookies(ctx, tokenDTO)
 
 	ctx.Redirect(tokenDTO.ReturnURL, fasthttp.StatusFound)
 }
 
+// HandleLogout godoc
+// @Summary Handle logout from keycloak
+// @Description Return user to homepage
+// @Tags openid-connect
+// @Success 302
+// @Router /openid-connect/logout [get].
 func (ah *Handler) HandleLogout(ctx *fasthttp.RequestCtx) {
 	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
@@ -160,4 +150,5 @@ func (ah *Handler) RegisterRoutes(apiGroup *router.Group) {
 	group := apiGroup.Group("/openid-connect")
 	group.GET("/auth", ah.handleAuth)
 	group.GET("/token", ah.handleToken)
+	group.GET("/logout", ah.HandleLogout)
 }
