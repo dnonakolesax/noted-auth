@@ -141,6 +141,7 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	}
 
 	reqStart := time.Now().UnixMilli()
+	hc.logger.DebugContext(ctx, "Request path", slog.String("path", hc.endpoint))
 	hc.logger.InfoContext(ctx, "Executing request", slog.String(methodLoggerKey, method))
 	resp, err := hc.c.Do(req)
 	reqEnd := time.Now().UnixMilli()

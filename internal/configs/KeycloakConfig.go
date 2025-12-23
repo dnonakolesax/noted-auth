@@ -27,6 +27,8 @@ const (
 	realmTokenEndpointDefault      = "/token"
 	realmLogoutEndpointKey         = "realm.logout-endpoint"
 	realmLogoutEndpointDefault     = "/logout"
+	realmSessionAddressKey         = "realm.session-address"
+	realmSessionAddressDefault     = "http://keycloak-ru:8080/realms/noted/account/sessions/devices/"
 )
 
 type KeycloakConfig struct {
@@ -43,6 +45,7 @@ type KeycloakConfig struct {
 	AuthEndpoint          string
 	TokenEndpoint         string
 	LogoutEndpoint        string
+	SessionAddress        string
 }
 
 func (kc *KeycloakConfig) Load(v *viper.Viper) {
@@ -60,6 +63,7 @@ func (kc *KeycloakConfig) Load(v *viper.Viper) {
 	kc.AuthEndpoint = v.GetString(realmAuthEndpointKey)
 	kc.TokenEndpoint = v.GetString(realmTokenEndpointKey)
 	kc.LogoutEndpoint = v.GetString(realmLogoutEndpointKey)
+	kc.SessionAddress = v.GetString(realmSessionAddressKey)
 }
 
 func (kc *KeycloakConfig) SetDefaults(v *viper.Viper) {
@@ -76,4 +80,5 @@ func (kc *KeycloakConfig) SetDefaults(v *viper.Viper) {
 	v.SetDefault(realmAuthEndpointKey, realmAuthEndpointDefault)
 	v.SetDefault(realmTokenEndpointKey, realmTokenEndpointDefault)
 	v.SetDefault(realmLogoutEndpointKey, realmLogoutEndpointDefault)
+	v.SetDefault(realmSessionAddressKey, realmSessionAddressDefault)
 }
