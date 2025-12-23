@@ -24,6 +24,7 @@ type Layers struct {
 	sessionHTTP *sessionDelivery.Handler
 	userHTTP    *userDelivery.Handler
 	userGRPC    *userDelivery.Server
+	authGRPC    *authDelivery.Server
 
 	// authUsecase    usecase.AuthUsecase
 	// sessionUsecase usecase.SessionUsecase
@@ -72,12 +73,14 @@ func (a *App) SetupLayers() (error) {
 		 a.health.Keycloak, a.health.Vault, a.loggers.HTTP)
 
 	userServer := userDelivery.NewUserServer(userUsecase, a.loggers.GRPC)
+	authServer := authDelivery.NewUserServer(stateUsecase, a.loggers.GRPC)
 
 	a.layers = &Layers{
 		authHTTP: authHandler,
 		userHTTP: userHandler,
 		sessionHTTP: sessionHandler,
 		userGRPC: userServer,
+		authGRPC: authServer,
 		hcHTTP: healthcheckHandler,
 	}
 	return nil

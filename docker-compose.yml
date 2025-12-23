@@ -1,0 +1,31 @@
+services:  
+  auth:
+    image: dnonakolesax/noted-auth:0.0.1
+    ports:
+      - "8800:8800"
+      - "8801:8801"
+      - "8802:8802"
+    volumes:
+      - ./configs:/configs      
+    depends_on:
+      - na-redis
+    environment:
+        VAULT_ADDRESS: ${VAULT_ADDRESS}
+        VAULT_LOGIN: ${VAULT_LOGIN}
+        VAULT_PASSWORD: ${VAULT_PASSWORD}
+        CI_COMMIT_HASH: ${CI_COMMIT_HASH}
+    networks: [authnet, noted-infra_infra-kc-postgres]
+  na-redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [authnet]
+    command: --requirepass ${REDIS_PASS}
+
+networks:
+  authnet:
+  noted-infra_infra-kc-postgres:
+    external: true

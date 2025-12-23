@@ -22,6 +22,7 @@ import (
 	"github.com/valyala/fasthttp"
 
 	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
+	authProto "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1/proto"
 	"google.golang.org/grpc"
 )
 
@@ -103,6 +104,7 @@ func (a *App) Run() {
 
 	grpcSrv := grpc.NewServer()
 	userProto.RegisterUserServiceServer(grpcSrv, a.layers.userGRPC)
+	authProto.RegisterAuthServiceServer(grpcSrv, a.layers.authGRPC)
 
 	wg.Add(1)
 	go func() {

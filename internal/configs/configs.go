@@ -64,8 +64,7 @@ func ListenUpdates(updateChan chan viper.KVEntry, hc *atomic.Bool) *UpdateChans 
 func SetupConfigs(initLogger *slog.Logger, configsDir string, hc *atomic.Bool) (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
-		initLogger.ErrorContext(context.Background(), "Error loading .env file")
-		return nil, err
+		initLogger.WarnContext(context.Background(), "Error loading .env file")
 	}
 
 	v := viper.New()

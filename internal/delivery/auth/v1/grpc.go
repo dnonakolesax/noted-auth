@@ -22,7 +22,7 @@ func NewUserServer(authUsecase usecase, logger *slog.Logger) *Server {
 	}
 }
 
-func (us *Server) GetUserCtx(ctx context.Context, req *auth.UserTokens) (*auth.TokenData, error) {
+func (us *Server) AuthUserIDCtx(ctx context.Context, req *auth.UserTokens) (*auth.TokenData, error) {
 	traceID, ok := ctx.Value("ReqId").(string)
 
 	if !ok {

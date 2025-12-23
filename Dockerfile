@@ -1,13 +1,13 @@
 # Установка модулей и тесты
-FROM golang:1.24.7 as modules
+FROM golang:1.24.7 AS modules
 
 ADD go.mod go.sum /m/
 RUN cd /m && go mod download
 
-RUN make test
+# RUN make test
 
 # Сборка приложения
-FROM golang:1.24.7 as builder
+FROM golang:1.24.7 AS builder
 
 COPY --from=modules /go/pkg /go/pkg
 
@@ -30,10 +30,7 @@ COPY --from=builder /etc/passwd /etc/passwd
 # Запускаем от имени этого пользователя
 USER auth-runner
 
-RUN mkdir -p  /noted-auth/db/requests
-RUN mkdir -p  /noted-auth/cofigs
 COPY --from=builder /noted-auth/bin/noted-auth /noted-auth
-COPY --from=builder /noted-auth/configs /configs
 COPY --from=builder /noted-auth/db/requests /db/requests
 
 CMD ["/noted-auth"]

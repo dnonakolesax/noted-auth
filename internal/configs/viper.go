@@ -48,11 +48,11 @@ func Load(path string, v *viper.Viper, logger *slog.Logger, vaultClient *vault.C
 	if err != nil {
 		var vErr viper.ConfigFileNotFoundError
 		if errors.As(err, &vErr) {
-			logger.Error("Config file not found env")
-			return nil
+			logger.Warn("Config file not found env")
+			//return nil
 		}
-		logger.Error("Failed to merge dotenv config", slog.String(consts.ErrorLoggerKey, err.Error()))
-		return fmt.Errorf("failed to merge config: %w", err)
+		logger.Warn("Failed to merge dotenv config", slog.String(consts.ErrorLoggerKey, err.Error()))
+		//return fmt.Errorf("failed to merge config: %w", err)
 	}
 
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
