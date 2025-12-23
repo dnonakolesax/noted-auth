@@ -219,8 +219,8 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	}
 	var dto model.TokenDTO
 	ac.logger.DebugContext(ctx, "Token-post response body", string(body))
-	println(string(body))
 	err = easyjson.Unmarshal(body, &dto)
+	ac.logger.DebugContext(ctx, "dto", slog.String("ac id key", dto.IDToken))
 	if err != nil {
 		ac.logger.ErrorContext(ctx, "Failed to unmarshal token-post response body",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -238,10 +238,10 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	return dto, nil
 }
 
-func (ac *AuthUsecase) GetLogoutLink(ctx context.Context) string {
+func (ac *AuthUsecase) GetLogoutLink(ctx context.Context, idt string) string {
 	trace, _ := ctx.Value(consts.TraceContextKey).(slog.Attr)
-	link := fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s",
-		ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI)
+	link := fmt.Sprintf("%s/%s?post_logout_redirect_uri=%s&id_token_hint=%s",
+		ac.kcConfig.RealmAddress, ac.kcConfig.LogoutEndpoint, ac.kcConfig.PostLogoutRedirectURI, idt)
 	ac.logger.DebugContext(ctx, "Created logout link", slog.String("link", link), trace)
 	return link
 }

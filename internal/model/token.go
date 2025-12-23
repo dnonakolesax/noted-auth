@@ -5,6 +5,7 @@ type TokenDTO struct { //nolint:recvcheck // autogen issues
 	ExpiresIn       int    `json:"expires_in"`
 	RefreshExp      int    `json:"refresh_expires_in"`
 	RefreshToken    string `json:"refresh_token"`
+	IDToken         string `json:"id_token"`
 	TokenType       string `json:"token_type"`
 	NotBeforePolicy int    `json:"not-before-policy"`
 	SessionState    string `json:"session_state"`
@@ -26,11 +27,11 @@ type IntrospectDTO struct {
 	Subject string `json:"sub"`
 }
 
-func (td *TokenGRPCDTO) ToTokenDTO () TokenDTO {
+func (td *TokenGRPCDTO) ToTokenDTO() TokenDTO {
 	return TokenDTO{
-		AccessToken: td.AccessToken,
+		AccessToken:  td.AccessToken,
 		RefreshToken: td.RefreshToken,
-		ExpiresIn: td.ExpiresIn,
-		RefreshExp: td.RefreshExp,
+		ExpiresIn:    td.ExpiresIn,
+		RefreshExp:   td.RefreshExp,
 	}
 }

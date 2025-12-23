@@ -18,7 +18,7 @@ import (
 type usecase interface {
 	GetAuthLink(ctx context.Context, retunURL string) (string, error)
 	GetToken(ctx context.Context, state string, token string) (model.TokenDTO, error)
-	GetLogoutLink(ctx context.Context) string
+	GetLogoutLink(ctx context.Context, idt string) string
 	GetUserID(ctx context.Context, at string, rt string) (model.TokenGRPCDTO, error)
 }
 
@@ -117,6 +117,7 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	}
 
 	tokenDTO, err := ah.authUsecase.GetToken(contex, string(state), string(code))
+	ah.logger.DebugContext(contex, "dto", slog.String("id key", tokenDTO.IDToken))
 
 	if err != nil {
 		if errors.Is(err, errorvals.ErrObjectNotFoundInRepoError) {
@@ -143,7 +144,16 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 func (ah *Handler) HandleLogout(ctx *fasthttp.RequestCtx) {
 	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
-	ctx.Redirect(ah.authUsecase.GetLogoutLink(contex), fasthttp.StatusFound)
+	idt := ctx.Request.Header.Cookie(consts.IDTCookieKey)
+
+	if idt == nil {
+		ah.logger.WarnContext(contex, "Id token is empty")
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		return 
+	}
+	cookies.EraseAccessCookies(ctx)
+
+	ctx.Redirect(ah.authUsecase.GetLogoutLink(contex, string(idt)), fasthttp.StatusFound)
 }
 
 func (ah *Handler) RegisterRoutes(apiGroup *router.Group) {

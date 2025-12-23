@@ -28,7 +28,7 @@ func (uu *UserUsecase) Get(ctx context.Context, userID string) (model.User, erro
 	user, err := uu.userRepo.GetUser(ctx, userID)
 
 	if err != nil {
-		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()))
+		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("ID", userID))
 		return model.User{}, err
 	}
 

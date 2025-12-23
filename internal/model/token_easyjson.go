@@ -17,7 +17,116 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexer.Lexer, out *TokenDTO) {
+func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexer.Lexer, out *TokenGRPCDTO) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		switch key {
+		case "AccessToken":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.AccessToken = string(in.String())
+			}
+		case "RefreshToken":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RefreshToken = string(in.String())
+			}
+		case "ExpiresIn":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ExpiresIn = int(in.Int())
+			}
+		case "RefreshExp":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RefreshExp = int(in.Int())
+			}
+		case "UserID":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.UserID = string(in.String())
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwriter.Writer, in TokenGRPCDTO) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"AccessToken\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.AccessToken))
+	}
+	{
+		const prefix string = ",\"RefreshToken\":"
+		out.RawString(prefix)
+		out.String(string(in.RefreshToken))
+	}
+	{
+		const prefix string = ",\"ExpiresIn\":"
+		out.RawString(prefix)
+		out.Int(int(in.ExpiresIn))
+	}
+	{
+		const prefix string = ",\"RefreshExp\":"
+		out.RawString(prefix)
+		out.Int(int(in.RefreshExp))
+	}
+	{
+		const prefix string = ",\"UserID\":"
+		out.RawString(prefix)
+		out.String(string(in.UserID))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v TokenGRPCDTO) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v TokenGRPCDTO) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *TokenGRPCDTO) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *TokenGRPCDTO) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(l, v)
+}
+func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel1(in *jlexer.Lexer, out *TokenDTO) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -54,6 +163,12 @@ func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexe
 				in.Skip()
 			} else {
 				out.RefreshToken = string(in.String())
+			}
+		case "id_token":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IDToken = string(in.String())
 			}
 		case "token_type":
 			if in.IsNull() {
@@ -101,7 +216,7 @@ func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexe
 		in.Consumed()
 	}
 }
-func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwriter.Writer, in TokenDTO) {
+func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel1(out *jwriter.Writer, in TokenDTO) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -124,6 +239,11 @@ func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwri
 		const prefix string = ",\"refresh_token\":"
 		out.RawString(prefix)
 		out.String(string(in.RefreshToken))
+	}
+	{
+		const prefix string = ",\"id_token\":"
+		out.RawString(prefix)
+		out.String(string(in.IDToken))
 	}
 	{
 		const prefix string = ",\"token_type\":"
@@ -161,23 +281,99 @@ func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwri
 // MarshalJSON supports json.Marshaler interface
 func (v TokenDTO) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(&w, v)
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel1(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v TokenDTO) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(w, v)
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel1(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *TokenDTO) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(&r, v)
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel1(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *TokenDTO) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(l, v)
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel1(l, v)
+}
+func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel2(in *jlexer.Lexer, out *IntrospectDTO) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		switch key {
+		case "active":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Active = bool(in.Bool())
+			}
+		case "sub":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Subject = string(in.String())
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel2(out *jwriter.Writer, in IntrospectDTO) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"active\":"
+		out.RawString(prefix[1:])
+		out.Bool(bool(in.Active))
+	}
+	{
+		const prefix string = ",\"sub\":"
+		out.RawString(prefix)
+		out.String(string(in.Subject))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v IntrospectDTO) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel2(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v IntrospectDTO) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel2(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *IntrospectDTO) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel2(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *IntrospectDTO) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel2(l, v)
 }

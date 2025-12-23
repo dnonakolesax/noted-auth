@@ -133,8 +133,6 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	ctx, cancel := context.WithTimeout(context.TODO(), hc.c.Timeout)
 	defer cancel()
 	req, err := hc.createRequest(ctx, method, params)
-	req.Header.Add("Content-type", "application/json")
-	req.Header.Add("Authorization", "Bearer " + params.token)
 	println("Bearer " + params.token)
 	if err != nil {
 		return nil, err

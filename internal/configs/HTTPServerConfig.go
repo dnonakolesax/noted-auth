@@ -18,7 +18,7 @@ const (
 	sHTTPMaxReqBodySizeKey            = "http-server.max-req-body-size"
 	sHTTPMaxReqBodySizeDefault        = 4 * 1024 * 1024
 	sHTTPReadBufferSizeKey            = "http-server.read-buffer-size"
-	sHTTPReadBufferSizeDefault        = 4 * 1024
+	sHTTPReadBufferSizeDefault        = 8 * 1024
 	sHTTPWriteBufferSizeKey           = "http-server.write-buffer-size" //nolint:gosec // false positive Potential hardcoded credentials
 	sHTTPWriteBufferSizeDefault       = 4 * 1024
 	sHTTPConcurrencyKey               = "http-server.concurrency"

@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1/proto"
+	"google.golang.org/grpc/metadata"
 )
 
 type Server struct {
@@ -23,13 +25,16 @@ func NewUserServer(authUsecase usecase, logger *slog.Logger) *Server {
 }
 
 func (us *Server) AuthUserIDCtx(ctx context.Context, req *auth.UserTokens) (*auth.TokenData, error) {
-	traceID, ok := ctx.Value("ReqId").(string)
+	md, ok := metadata.FromIncomingContext(ctx);
 
 	if !ok {
-		us.logger.ErrorContext(ctx, "Couldn't cast trace id to string", slog.Any("traceID", traceID))
+		us.logger.ErrorContext(ctx, "Couldn't parse request metadata")
+		return nil, fmt.Errorf("Couldn't parse request metadata")
 	}
+	traceID := md["trace_id"]
+	us.logger.DebugContext(ctx, "got request", slog.String("trace", traceID[0]))
 
-	trace := slog.String(consts.TraceLoggerKey, traceID)
+	trace := slog.String(consts.TraceLoggerKey, traceID[0])
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	tokenData, err := us.authUsecase.GetUserID(contex, req.Auth, req.Refresh)
 

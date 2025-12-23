@@ -3,8 +3,9 @@ package consts
 const EmptyString = ""
 
 const (
-	ATCookieKey = "NTD-DNAnAT"
-	RTCookieKey = "NTD-DNART"
+	ATCookieKey  = "NTD-DNAnAT"
+	RTCookieKey  = "NTD-DNART"
+	IDTCookieKey = "NTD-DNALT"
 )
 
 type ContextKey string
