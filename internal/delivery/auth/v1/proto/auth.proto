@@ -14,6 +14,7 @@ message TokenData {
     string ID=1;
     optional string at=2;
     optional string rt=3;
+    optional string it=4;
 }
 
 service AuthService {

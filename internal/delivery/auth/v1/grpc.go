@@ -47,11 +47,13 @@ func (us *Server) AuthUserIDCtx(ctx context.Context, req *auth.UserTokens) (*aut
 		ID: tokenData.UserID,
 		At: nil,
 		Rt: nil,
+		It: nil,
 	}
 
 	if tokenData.AccessToken != "" && tokenData.RefreshToken != "" {
 		uinfo.At = &tokenData.AccessToken
 		uinfo.Rt = &tokenData.RefreshToken
+		uinfo.It = &tokenData.IDToken
 	}
 
 	return uinfo, nil

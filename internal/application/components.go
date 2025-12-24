@@ -15,6 +15,7 @@ type Components struct {
 	pgsql    *dbsql.PGXWorker
 	keycloak *httpclient.HTTPClient
 	keycloak2 *httpclient.HTTPClient
+	keycloak2d *httpclient.HTTPClient
 }
 
 func (a *App) SetupComponents() (error) {
@@ -67,18 +68,21 @@ func (a *App) SetupComponents() (error) {
 	}	
 
 	a.initLogger.InfoContext(context.Background(), "Created HTTP client, keycloak pinged")
-	a.components =  &Components{
-		pgsql: psqlWorker,
-		redis: redisClient,
-		keycloak: httpClient,
-	}
 
 	/************************************************/
 	/*              HTTP CLIENT SETUP               */
 	/************************************************/
-
 	a.initLogger.InfoContext(context.Background(), "Creating HTTP client for sessions")
-	httpClient2, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress,
+	httpClient2, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress + "/devices",
+		a.configs.HTTPClient, a.metrics.TokenGetMetrics, a.health.Keycloak, a.loggers.HTTPc)
+
+	if err != nil {
+		a.initLogger.ErrorContext(context.Background(), "Error connecting to keycloak",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
+		return err
+	}	
+
+	httpClient3, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress,
 		a.configs.HTTPClient, a.metrics.TokenGetMetrics, a.health.Keycloak, a.loggers.HTTPc)
 
 	if err != nil {
@@ -93,6 +97,7 @@ func (a *App) SetupComponents() (error) {
 		redis: redisClient,
 		keycloak: httpClient,
 		keycloak2: httpClient2,
+		keycloak2d: httpClient3,
 	}
 	return nil
 }

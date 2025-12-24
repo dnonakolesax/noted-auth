@@ -18,12 +18,15 @@ type usecase interface {
 type Handler struct {
 	sessionUsecase usecase
 	logger         *slog.Logger
+	mw             func(h fasthttp.RequestHandler) fasthttp.RequestHandler
 }
 
-func NewSessionHandler(sesionUsecase usecase, logger *slog.Logger) *Handler {
+func NewSessionHandler(sesionUsecase usecase, logger *slog.Logger,
+	mwFunc func(h fasthttp.RequestHandler) fasthttp.RequestHandler) *Handler {
 	return &Handler{
 		sessionUsecase: sesionUsecase,
 		logger:         logger,
+		mw:             mwFunc,
 	}
 }
 
@@ -104,6 +107,6 @@ func (sh *Handler) Delete(ctx *fasthttp.RequestCtx) {
 
 func (sh *Handler) RegisterRoutes(apiGroup *router.Group) {
 	g := apiGroup.Group("/session")
-	g.GET("/", sh.Get)
-	g.DELETE("/{id}", sh.Delete)
+	g.GET("/", sh.mw(sh.Get))
+	g.DELETE("/{id}", sh.mw(sh.Delete))
 }

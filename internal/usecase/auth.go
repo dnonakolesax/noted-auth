@@ -302,19 +302,23 @@ func (ac *AuthUsecase) GetUserID(ctx context.Context, at string, rt string) (mod
 	}
 
 	if !intro.Active {
+		ac.logger.DebugContext(ctx, "tokens not active")
 		newTokens, err := ac.refreshTokens(rt)
 		if err != nil {
 			ac.logger.ErrorContext(ctx, "failed to obtain new tokens",
 				slog.String(consts.ErrorLoggerKey, err.Error()))
-			return model.TokenGRPCDTO{
-				UserID:       intro.Subject,
-				AccessToken:  newTokens.AccessToken,
-				RefreshToken: newTokens.RefreshToken,
-				ExpiresIn:    newTokens.ExpiresIn,
-				RefreshExp:   newTokens.RefreshExp,
-			}, err
+			return model.TokenGRPCDTO{}, nil
 		}
+		return model.TokenGRPCDTO{
+			UserID:       intro.Subject,
+			AccessToken:  newTokens.AccessToken,
+			RefreshToken: newTokens.RefreshToken,
+			IDToken:      newTokens.IDToken,
+			ExpiresIn:    newTokens.ExpiresIn,
+			RefreshExp:   newTokens.RefreshExp,
+		}, nil
 	}
+	ac.logger.DebugContext(ctx, "tokens active")
 
 	return model.TokenGRPCDTO{
 		UserID:       intro.Subject,

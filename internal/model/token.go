@@ -17,6 +17,7 @@ type TokenDTO struct { //nolint:recvcheck // autogen issues
 type TokenGRPCDTO struct {
 	AccessToken  string
 	RefreshToken string
+	IDToken      string
 	ExpiresIn    int
 	RefreshExp   int
 	UserID       string
@@ -31,7 +32,9 @@ func (td *TokenGRPCDTO) ToTokenDTO() TokenDTO {
 	return TokenDTO{
 		AccessToken:  td.AccessToken,
 		RefreshToken: td.RefreshToken,
+		IDToken:      td.IDToken,
 		ExpiresIn:    td.ExpiresIn,
 		RefreshExp:   td.RefreshExp,
 	}
 }
+

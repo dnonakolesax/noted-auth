@@ -36,6 +36,9 @@ func SetupAccessCookies(ctx *fasthttp.RequestCtx, tokenDTO model.TokenDTO) {
 	ctx.Response.Header.SetCookie(&atCookie)
 	ctx.Response.Header.SetCookie(&rtCookie)
 	ctx.Response.Header.SetCookie(&idtCookie)
+	ctx.Request.Header.SetCookie(consts.ATCookieKey, tokenDTO.AccessToken)
+	ctx.Request.Header.SetCookie(consts.RTCookieKey, tokenDTO.RefreshToken)
+	ctx.Request.Header.SetCookie(consts.IDTCookieKey, tokenDTO.IDToken)
 }
 
 func EraseAccessCookies(ctx *fasthttp.RequestCtx) {

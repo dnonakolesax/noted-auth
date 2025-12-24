@@ -157,7 +157,7 @@ func (a *App) Run() {
 	/************************************************/
 	metricsServer := &http.Server{
 		Handler:           promhttp.HandlerFor(a.metrics.Reg, promhttp.HandlerOpts{Registry: a.metrics.Reg}),
-		Addr:              ":" + strconv.Itoa(a.configs.Service.MetricsPort),
+		Addr:              "127.0.0.1:" + strconv.Itoa(a.configs.Service.MetricsPort),
 		ReadHeaderTimeout: a.configs.HTTPServer.ReadTimeout,
 	}
 

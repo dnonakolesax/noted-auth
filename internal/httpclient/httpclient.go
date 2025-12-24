@@ -125,6 +125,9 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 		}
 	}
 
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("resp status code: %d", resp.StatusCode)
+	}
 	return resp, lastErr
 }
 
@@ -133,7 +136,6 @@ func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	ctx, cancel := context.WithTimeout(context.TODO(), hc.c.Timeout)
 	defer cancel()
 	req, err := hc.createRequest(ctx, method, params)
-	println("Bearer " + params.token)
 	if err != nil {
 		return nil, err
 	}
@@ -171,17 +173,19 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 	req, err := http.NewRequestWithContext(ctx, method,
 		fmt.Sprintf("%s%s%s", hc.endpoint, HTTPPathDelimeter, params.pathParam),
 		strings.NewReader(params.body))
+
+	//dump, _ := httputil.DumpRequestOut(req, false)
+	//println(string(dump))
 	if err != nil {
 		hc.logger.ErrorContext(ctx, "Error creating http-request", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 
-	if method == "GET" {
-
-	req.Header.Set(HTTPHeaderContentType, "application/json")
+	if method == "GET" || method == "DELETE" {
+		req.Header.Set(HTTPHeaderContentType, "application/json")
 	} else {
-		
-	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeURLEncoded)
+
+		req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeURLEncoded)
 	}
 	if params.token != consts.EmptyString {
 		req.Header.Set(HTTPHeaderAuthorization, fmt.Sprintf("%s%s", HTTPAuthorizationPrefix, params.token))

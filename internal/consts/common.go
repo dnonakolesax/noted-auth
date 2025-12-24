@@ -26,3 +26,7 @@ const (
 const (
 	ApplicationJSONContentType = "application/json"
 )
+
+const (
+	CtxUserIDKey = "user_id"
+)

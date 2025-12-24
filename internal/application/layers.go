@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/dnonakolesax/noted-auth/internal/consts"
+	"github.com/dnonakolesax/noted-auth/internal/middlewares"
 
 	stateRepo "github.com/dnonakolesax/noted-auth/internal/repo/state"
 	userRepo "github.com/dnonakolesax/noted-auth/internal/repo/user"
@@ -35,7 +36,7 @@ type Layers struct {
 	// userRepo       userRepo.UserRepo
 }
 
-func (a *App) SetupLayers() (error) {
+func (a *App) SetupLayers() error {
 	/************************************************/
 	/*                  REPOS INIT                  */
 	/************************************************/
@@ -44,7 +45,7 @@ func (a *App) SetupLayers() (error) {
 	stateInMemoryRepository := stateRepo.NewInMemStateRepo(a.loggers.Repo)
 	stateRepos := []usecase.StateRepo{stateInMemoryRepository, stateRedisRepository}
 	userRepository, err := userRepo.NewUserRepo(a.components.pgsql, a.configs.Keycloak.RealmID,
-		 a.configs.PSQL.RequestsPath, a.loggers.Repo)
+		a.configs.PSQL.RequestsPath, a.loggers.Repo)
 
 	if err != nil {
 		a.initLogger.ErrorContext(context.Background(), "Error creating user repository",
@@ -59,7 +60,13 @@ func (a *App) SetupLayers() (error) {
 	stateUsecase := usecase.NewAuthUsecase(a.configs.Service.AuthTimeout, stateRepos, *a.configs.Keycloak, a.components.keycloak,
 		a.loggers.Service, a.configs.UpdateChans.KCClientSecret)
 	userUsecase := usecase.NewUserUsecase(userRepository, a.loggers.Service)
-	sessionUsecase := usecase.NewSessionUsecase(a.components.keycloak2, a.loggers.Service)
+	sessionUsecase := usecase.NewSessionUsecase(a.components.keycloak2, a.components.keycloak2d, a.loggers.Service)
+
+	/************************************************/
+	/*                MIDDLEWARES INIT              */
+	/************************************************/
+
+	authMW := middlewares.NewAuthMW(stateUsecase, a.loggers.HTTP)
 
 	/************************************************/
 	/*              REST HANDLERS INIT              */
@@ -67,21 +74,21 @@ func (a *App) SetupLayers() (error) {
 
 	authHandler := authDelivery.NewAuthHandler(a.configs.Service.AllowedRedirect, a.configs.Service.AllowedRedirect,
 		stateUsecase, a.loggers.HTTP)
-	userHandler := userDelivery.NewUserHandler(userUsecase, a.loggers.HTTP, stateUsecase)
-	sessionHandler := sessionDelivery.NewSessionHandler(sessionUsecase, a.loggers.HTTP)
+	userHandler := userDelivery.NewUserHandler(userUsecase, a.loggers.HTTP, authMW.AuthMiddleware)
+	sessionHandler := sessionDelivery.NewSessionHandler(sessionUsecase, a.loggers.HTTP, authMW.AuthMiddleware)
 	healthcheckHandler := healthDelivery.NewHealthCheckHandler(a.health.Redis, a.health.Postgres,
-		 a.health.Keycloak, a.health.Vault, a.loggers.HTTP)
+		a.health.Keycloak, a.health.Vault, a.loggers.HTTP)
 
 	userServer := userDelivery.NewUserServer(userUsecase, a.loggers.GRPC)
 	authServer := authDelivery.NewUserServer(stateUsecase, a.loggers.GRPC)
 
 	a.layers = &Layers{
-		authHTTP: authHandler,
-		userHTTP: userHandler,
+		authHTTP:    authHandler,
+		userHTTP:    userHandler,
 		sessionHTTP: sessionHandler,
-		userGRPC: userServer,
-		authGRPC: authServer,
-		hcHTTP: healthcheckHandler,
+		userGRPC:    userServer,
+		authGRPC:    authServer,
+		hcHTTP:      healthcheckHandler,
 	}
 	return nil
 }

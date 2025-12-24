@@ -10,25 +10,35 @@ import (
 )
 
 type SessionUsecase struct {
-	HTTPClient *httpclient.HTTPClient
-	logger     *slog.Logger
+	HTTPClientGet    *httpclient.HTTPClient
+	HTTPClientDelete *httpclient.HTTPClient
+	logger           *slog.Logger
 }
 
-func NewSessionUsecase(httpClient *httpclient.HTTPClient, logger *slog.Logger) *SessionUsecase {
+func NewSessionUsecase(httpClient *httpclient.HTTPClient, httpClientd *httpclient.HTTPClient,
+	logger *slog.Logger) *SessionUsecase {
 	return &SessionUsecase{
-		HTTPClient: httpClient,
-		logger:     logger,
+		HTTPClientGet:    httpClient,
+		HTTPClientDelete: httpClientd,
+		logger:           logger,
 	}
 }
 
 func (su *SessionUsecase) Get(ctx context.Context, token string) ([]byte, error) {
-	sessionsResponse, err := su.HTTPClient.Get(context.TODO(), token)
+	sessionsResponse, err := su.HTTPClientGet.Get(context.TODO(), token)
 	defer func() {
-		_ = sessionsResponse.Body.Close()
+		if sessionsResponse != nil {
+			_ = sessionsResponse.Body.Close()
+		}
 	}()
 
 	if err != nil {
 		su.logger.ErrorContext(ctx, "Error getting sessions", slog.String(consts.ErrorLoggerKey, err.Error()))
+		return nil, err
+	}
+
+	if sessionsResponse == nil {
+		su.logger.ErrorContext(ctx, "session body nil")
 		return nil, err
 	}
 
@@ -43,14 +53,22 @@ func (su *SessionUsecase) Get(ctx context.Context, token string) ([]byte, error)
 }
 
 func (su *SessionUsecase) Delete(ctx context.Context, token string, id string) error {
-	deleteResponse, err := su.HTTPClient.Delete(context.TODO(), token, id)
+	deleteResponse, err := su.HTTPClientDelete.Delete(context.TODO(), token, id)
 	defer func() {
-		_ = deleteResponse.Body.Close()
+		if deleteResponse != nil {
+			_ = deleteResponse.Body.Close()
+		}
 	}()
 
 	if err != nil {
 		su.logger.ErrorContext(ctx, "Error deleting response", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return err
+	}
+
+	if deleteResponse != nil {
+		body, _ := io.ReadAll(deleteResponse.Body)
+		println(string(body))
+
 	}
 
 	return nil
