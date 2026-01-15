@@ -143,9 +143,9 @@ func NewPGXWorker(conn *PGXConn, alive *atomic.Bool, vaultChan chan string) (*PG
 	alive.Store(true)
 
 	worker := &PGXWorker{
-		Conn:     conn,
-		Requests: requests,
-		Alive:    alive,
+		Conn:         conn,
+		Requests:     requests,
+		Alive:        alive,
 		ConnUpdating: &atomic.Bool{},
 	}
 
@@ -170,7 +170,8 @@ func (pw *PGXWorker) MonitorVault(vaultChan chan string) {
 				slog.String(consts.ErrorLoggerKey, err.Error()))
 			continue
 		}
-		for !pw.ConnUpdating.CompareAndSwap(false, true) {}
+		for !pw.ConnUpdating.CompareAndSwap(false, true) {
+		}
 		pw.Conn = newConn
 		pw.ConnUpdating.Store(false)
 	}
@@ -182,19 +183,25 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 
 	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
 	if pw.ConnUpdating.Load() {
-		for pw.ConnUpdating.Load() {}
+		for pw.ConnUpdating.Load() {
+		}
 	}
 	_, err := pw.Conn.pool.Exec(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
-	if errors.As(err, &pgErr) {
+	if err != nil {
+		fmt.Println("ERR")
 		pw.Alive.Store(false)
 		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		rdbErr := new(RDBError)
-		rdbErr.Type = pgErr.Code
-		rdbErr.Field = pgErr.ColumnName
+		if errors.As(err, &pgErr) {
+			rdbErr.Type = pgErr.Code
+			rdbErr.Field = pgErr.ColumnName
+		} else {
+			rdbErr.Field = err.Error()
+		}
 		return rdbErr
 	}
 	pw.Conn.logger.DebugContext(ctx, "done executing sql", slog.String(sqlLoggerKey, sql))
@@ -207,17 +214,26 @@ func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{})
 	defer cancel()
 	pw.Conn.logger.DebugContext(ctx, "executing sql", slog.String(sqlLoggerKey, sql))
 	if pw.ConnUpdating.Load() {
-		for pw.ConnUpdating.Load() {}
+		for pw.ConnUpdating.Load() {
+		}
 	}
 	result, err := pw.Conn.pool.Query(timeCtx, sql, args...)
 
 	var pgErr *pgconn.PgError
 
-	if errors.As(err, &pgErr) {
+	if err != nil {
+		fmt.Println("ERR")
 		pw.Alive.Store(false)
 		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))
-		return &PGXResponse{}, RDBError{Type: pgErr.Code, Field: pgErr.ColumnName}
+		rdbErr := new(RDBError)
+		if errors.As(err, &pgErr) {
+			rdbErr.Type = pgErr.Code
+			rdbErr.Field = pgErr.ColumnName
+		} else {
+			rdbErr.Field = err.Error()
+		}
+		return nil, rdbErr
 	}
 	pw.Conn.logger.DebugContext(ctx, "done executing sql", slog.String(sqlLoggerKey, sql))
 
