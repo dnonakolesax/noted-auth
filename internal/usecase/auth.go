@@ -218,7 +218,7 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
-	ac.logger.DebugContext(ctx, "Token-post response body", string(body))
+	//ac.logger.DebugContext(ctx, "Token-post response body", string(body))
 	err = easyjson.Unmarshal(body, &dto)
 	ac.logger.DebugContext(ctx, "dto", slog.String("ac id key", dto.IDToken))
 	if err != nil {

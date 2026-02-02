@@ -10,6 +10,7 @@ import (
 
 type repo interface {
 	GetUser(ctx context.Context, userID string) (model.User, error)
+	IDByName(ctx context.Context, login string) (model.UserID, error)
 }
 
 type UserUsecase struct {
@@ -30,6 +31,17 @@ func (uu *UserUsecase) Get(ctx context.Context, userID string) (model.User, erro
 	if err != nil {
 		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("ID", userID))
 		return model.User{}, err
+	}
+
+	return user, nil
+}
+
+func (uu *UserUsecase) GetByUsername(ctx context.Context, username string) (model.UserID, error) {
+	user, err := uu.userRepo.IDByName(ctx, username)
+
+	if err != nil {
+		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("LOGIN", username))
+		return model.UserID{}, err
 	}
 
 	return user, nil

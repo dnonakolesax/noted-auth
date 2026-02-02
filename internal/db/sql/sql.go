@@ -164,6 +164,7 @@ func (pw *PGXWorker) MonitorVault(vaultChan chan string) {
 		}
 		newConf.Login = lp[0]
 		newConf.Password = lp[1]
+		pw.Conn.Disconnect()
 		newConn, err := NewPGXConn(newConf, pw.Conn.logger)
 		if err != nil {
 			pw.Conn.logger.Error("Error creating new pgsql conn from vault credentials",

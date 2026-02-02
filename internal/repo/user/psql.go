@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"maps"
 	"context"
 	"errors"
 	"log/slog"
@@ -13,9 +14,11 @@ import (
 const thisDomainName = "user"
 
 const userIDKey = "user_id"
+const userLoginKey = "user_login"
 
 const (
 	getUserFileName = "get_user"
+	getUserByNameFileName = "get_user_by_name"
 )
 
 type UserRepo struct {
@@ -32,9 +35,7 @@ func NewUserRepo(worker *dbsql.PGXWorker, realmID string, requestsPath string, l
 		return nil, err
 	}
 
-	for key, value := range userRequests {
-		worker.Requests[key] = value
-	}
+	maps.Copy(worker.Requests, userRequests)
 
 	return &UserRepo{
 		worker:  worker,
@@ -72,6 +73,39 @@ func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, err
 	if err != nil {
 		ur.logger.ErrorContext(ctx, "Error closing result", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return model.User{}, err
+	}
+	return user, nil
+}
+
+func (ur *UserRepo) IDByName(ctx context.Context, login string) (model.UserID, error) {
+	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.worker.Requests[getUserByNameFileName]))
+	result, err := ur.worker.Query(ctx, ur.worker.Requests[getUserByNameFileName], login, ur.realmID)
+
+	if err != nil {
+		ur.logger.ErrorContext(ctx, "Error executing query", slog.String(consts.ErrorLoggerKey, err.Error()))
+		return model.UserID{}, err
+	}
+
+	if !result.Next() {
+		ur.logger.WarnContext(ctx, "User not found", slog.String(userLoginKey, login))
+		return model.UserID{}, errors.New("not found")
+	}
+	var user model.UserID
+	err = result.Scan(&user.ID)
+	if err != nil {
+		ur.logger.ErrorContext(ctx, "Error scanning row", slog.String(consts.ErrorLoggerKey, err.Error()))
+		return model.UserID{}, err
+	}
+
+	if result.Next() {
+		ur.logger.ErrorContext(ctx, "Too many rows", slog.String(userLoginKey, login))
+		return model.UserID{}, errors.New("too many rows")
+	}
+
+	err = result.Close()
+	if err != nil {
+		ur.logger.ErrorContext(ctx, "Error closing result", slog.String(consts.ErrorLoggerKey, err.Error()))
+		return model.UserID{}, err
 	}
 	return user, nil
 }

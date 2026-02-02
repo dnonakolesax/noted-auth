@@ -43,6 +43,12 @@ func easyjsonF041b085DecodeGithubComDnonakolesaxNotedAuthInternalModel(in *jlexe
 			} else {
 				out.RefreshToken = string(in.String())
 			}
+		case "IDToken":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IDToken = string(in.String())
+			}
 		case "ExpiresIn":
 			if in.IsNull() {
 				in.Skip()
@@ -84,6 +90,11 @@ func easyjsonF041b085EncodeGithubComDnonakolesaxNotedAuthInternalModel(out *jwri
 		const prefix string = ",\"RefreshToken\":"
 		out.RawString(prefix)
 		out.String(string(in.RefreshToken))
+	}
+	{
+		const prefix string = ",\"IDToken\":"
+		out.RawString(prefix)
+		out.String(string(in.IDToken))
 	}
 	{
 		const prefix string = ",\"ExpiresIn\":"

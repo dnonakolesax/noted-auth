@@ -30,3 +30,8 @@ const (
 const (
 	CtxUserIDKey = "user_id"
 )
+
+const (
+	IdentifierID = "ID"
+	IdentifierLogin = "LOGIN"
+)
