@@ -161,6 +161,6 @@ func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) {
 func (uh *Handler) RegisterRoutes(apiGroup *router.Group) {
 	group := apiGroup.Group("/users")
 	group.GET("/{id}", uh.mw(uh.Get))
-	group.GET("/name/{name}", uh.mw(uh.Self))
+	group.GET("/name/{name}", uh.mw(uh.GetByName))
 	group.GET("/self", uh.mw(uh.Self))
 }
