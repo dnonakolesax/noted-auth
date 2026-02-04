@@ -18,3 +18,11 @@ lint:
 
 easyjson:
 	easyjson -all internal/model/*.go
+
+unit-test:
+	go test ./internal/... -coverprofile=coverage/coverage.out
+	grep -vE '(/mocks)|(/proto)' coverage/coverage.out >coverage/coverage_clear.out
+	go tool cover -html=coverage/coverage.out -o coverage/index.html
+
+unit-report:
+    cd coverage && python3 -m http.server 8000

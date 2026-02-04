@@ -100,6 +100,11 @@ func (pc *PGXConn) Disconnect() {
 	pc.pool.Close()
 }
 
+type IPGXWorker interface {
+	Exec(ctx context.Context, sql string, args ...any) error
+	Query(ctx context.Context, sql string, args ...any) (*PGXResponse, error)
+}
+
 type PGXWorker struct {
 	Conn         *PGXConn
 	ConnUpdating *atomic.Bool
@@ -172,6 +177,7 @@ func (pw *PGXWorker) MonitorVault(vaultChan chan string) {
 			continue
 		}
 		for !pw.ConnUpdating.CompareAndSwap(false, true) {
+			time.Sleep(time.Millisecond)
 		}
 		pw.Conn = newConn
 		pw.ConnUpdating.Store(false)
@@ -192,7 +198,6 @@ func (pw *PGXWorker) Exec(ctx context.Context, sql string, args ...interface{}) 
 	var pgErr *pgconn.PgError
 
 	if err != nil {
-		fmt.Println("ERR")
 		pw.Alive.Store(false)
 		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -223,7 +228,6 @@ func (pw *PGXWorker) Query(ctx context.Context, sql string, args ...interface{})
 	var pgErr *pgconn.PgError
 
 	if err != nil {
-		fmt.Println("ERR")
 		pw.Alive.Store(false)
 		pw.Conn.logger.ErrorContext(ctx, "failed executing sql", slog.String(sqlLoggerKey, sql),
 			slog.String(consts.ErrorLoggerKey, err.Error()))

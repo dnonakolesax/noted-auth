@@ -65,11 +65,5 @@ func (su *SessionUsecase) Delete(ctx context.Context, token string, id string) e
 		return err
 	}
 
-	if deleteResponse != nil {
-		body, _ := io.ReadAll(deleteResponse.Body)
-		println(string(body))
-
-	}
-
 	return nil
 }

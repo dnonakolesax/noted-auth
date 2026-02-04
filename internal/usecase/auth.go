@@ -49,6 +49,7 @@ func NewAuthUsecase(authLifetime time.Duration, repos []StateRepo, kcConfig conf
 		httpClient:   httpClient,
 		logger:       logger,
 		kcCSUpdating: &atomic.Bool{},
+		kcTimeout:    kcConfig.TokenTimeout,
 	}
 
 	go uc.MonitorVault(vaultChan)
@@ -58,7 +59,7 @@ func NewAuthUsecase(authLifetime time.Duration, repos []StateRepo, kcConfig conf
 
 func (ac *AuthUsecase) MonitorVault(vaultChan chan string) {
 	for secret := range vaultChan {
-		for !ac.kcCSUpdating.CompareAndSwap(false, true) {
+		for !ac.kcCSUpdating.CompareAndSwap(false, true) { //nolint:revive // spinlock
 		}
 		ac.kcConfig.ClientSecret = secret
 		ac.kcCSUpdating.Store(false)
@@ -218,7 +219,7 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 		return model.TokenDTO{}, err
 	}
 	var dto model.TokenDTO
-	//ac.logger.DebugContext(ctx, "Token-post response body", string(body))
+	// ac.logger.DebugContext(ctx, "Token-post response body", string(body))
 	err = easyjson.Unmarshal(body, &dto)
 	ac.logger.DebugContext(ctx, "dto", slog.String("ac id key", dto.IDToken))
 	if err != nil {
@@ -247,13 +248,15 @@ func (ac *AuthUsecase) GetLogoutLink(ctx context.Context, idt string) string {
 }
 
 func (ac *AuthUsecase) isTokenValid(token string) (model.IntrospectDTO, error) {
-	url := ac.kcConfig.RealmAddress + "/token/introspect"
+	introspectURL := ac.kcConfig.RealmAddress + "/token/introspect"
 
-	req, _ := http.NewRequest("POST", url, strings.NewReader("token="+token))
+	ctx, cancel := context.WithTimeout(context.Background(), ac.kcTimeout)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, introspectURL, strings.NewReader("token="+token))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(ac.kcConfig.ClientID, ac.kcConfig.ClientSecret)
 
-	client := &http.Client{Timeout: time.Second * 10}
+	client := &http.Client{Timeout: ac.kcTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return model.IntrospectDTO{}, err
@@ -270,7 +273,7 @@ func (ac *AuthUsecase) isTokenValid(token string) (model.IntrospectDTO, error) {
 }
 
 func (ac *AuthUsecase) refreshTokens(refreshToken string) (model.TokenDTO, error) {
-	url := ac.kcConfig.RealmAddress + "/token"
+	tokensURL := ac.kcConfig.RealmAddress + "/token"
 
 	body := strings.NewReader(
 		"grant_type=refresh_token&refresh_token=" + refreshToken +
@@ -278,10 +281,12 @@ func (ac *AuthUsecase) refreshTokens(refreshToken string) (model.TokenDTO, error
 			"&client_secret=" + ac.kcConfig.ClientSecret,
 	)
 
-	req, _ := http.NewRequest("POST", url, body)
+	ctx, cancel := context.WithTimeout(context.Background(), ac.kcTimeout)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, tokensURL, body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: time.Second * 10}
+	client := &http.Client{Timeout: ac.kcTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return model.TokenDTO{}, err
@@ -294,7 +299,6 @@ func (ac *AuthUsecase) refreshTokens(refreshToken string) (model.TokenDTO, error
 }
 
 func (ac *AuthUsecase) GetUserID(ctx context.Context, at string, rt string) (model.TokenGRPCDTO, error) {
-
 	intro, err := ac.isTokenValid(at)
 
 	if err != nil {
@@ -303,11 +307,11 @@ func (ac *AuthUsecase) GetUserID(ctx context.Context, at string, rt string) (mod
 
 	if !intro.Active {
 		ac.logger.DebugContext(ctx, "tokens not active")
-		newTokens, err := ac.refreshTokens(rt)
-		if err != nil {
+		newTokens, rerr := ac.refreshTokens(rt)
+		if rerr != nil {
 			ac.logger.ErrorContext(ctx, "failed to obtain new tokens",
-				slog.String(consts.ErrorLoggerKey, err.Error()))
-			return model.TokenGRPCDTO{}, nil
+				slog.String(consts.ErrorLoggerKey, rerr.Error()))
+			return model.TokenGRPCDTO{}, rerr
 		}
 		return model.TokenGRPCDTO{
 			UserID:       intro.Subject,

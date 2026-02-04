@@ -51,7 +51,8 @@ func newClient(cfg *configs.RedisConfig, logger *slog.Logger) (*redis.Client, er
 	return client, nil
 }
 
-func NewClient(cfg *configs.RedisConfig, alive *atomic.Bool, logger *slog.Logger, vaultChan chan string) (*Client, error) {
+func NewClient(cfg *configs.RedisConfig, alive *atomic.Bool, logger *slog.Logger,
+	vaultChan chan string) (*Client, error) {
 	client, err := newClient(cfg, logger)
 
 	if err != nil {
@@ -96,7 +97,8 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	rctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 	if c.ConnUpdating.Load() {
-		for c.ConnUpdating.Load() {}
+		for c.ConnUpdating.Load() {
+		}
 	}
 	val, err := c.Client.Get(rctx, key).Result()
 
@@ -116,7 +118,8 @@ func (c *Client) Set(ctx context.Context, key string, value string, ttl time.Dur
 	rctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 	if c.ConnUpdating.Load() {
-		for c.ConnUpdating.Load() {}
+		for c.ConnUpdating.Load() {
+		}
 	}
 	err := c.Client.Set(rctx, key, value, ttl).Err()
 

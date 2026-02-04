@@ -29,7 +29,8 @@ func (uu *UserUsecase) Get(ctx context.Context, userID string) (model.User, erro
 	user, err := uu.userRepo.GetUser(ctx, userID)
 
 	if err != nil {
-		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("ID", userID))
+		uu.logger.ErrorContext(ctx, "Error getting user",
+			slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("ID", userID))
 		return model.User{}, err
 	}
 
@@ -40,7 +41,8 @@ func (uu *UserUsecase) GetByUsername(ctx context.Context, username string) (mode
 	user, err := uu.userRepo.IDByName(ctx, username)
 
 	if err != nil {
-		uu.logger.ErrorContext(ctx, "Error getting user", slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("LOGIN", username))
+		uu.logger.ErrorContext(ctx, "Error getting user",
+			slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("LOGIN", username))
 		return model.UserID{}, err
 	}
 

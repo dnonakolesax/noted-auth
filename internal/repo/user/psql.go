@@ -1,7 +1,6 @@
-package repo
+package user
 
 import (
-	"maps"
 	"context"
 	"errors"
 	"log/slog"
@@ -17,17 +16,18 @@ const userIDKey = "user_id"
 const userLoginKey = "user_login"
 
 const (
-	getUserFileName = "get_user"
+	getUserFileName       = "get_user"
 	getUserByNameFileName = "get_user_by_name"
 )
 
 type UserRepo struct {
-	worker  *dbsql.PGXWorker
-	realmID string
-	logger  *slog.Logger
+	worker   dbsql.IPGXWorker
+	realmID  string
+	logger   *slog.Logger
+	requests map[string]string
 }
 
-func NewUserRepo(worker *dbsql.PGXWorker, realmID string, requestsPath string, logger *slog.Logger) (*UserRepo, error) {
+func NewUserRepo(worker dbsql.IPGXWorker, realmID string, requestsPath string, logger *slog.Logger) (*UserRepo, error) {
 	userRequests, err := dbsql.LoadSQLRequests(requestsPath + thisDomainName)
 
 	if err != nil {
@@ -35,18 +35,17 @@ func NewUserRepo(worker *dbsql.PGXWorker, realmID string, requestsPath string, l
 		return nil, err
 	}
 
-	maps.Copy(worker.Requests, userRequests)
-
 	return &UserRepo{
-		worker:  worker,
-		realmID: realmID,
-		logger:  logger,
+		worker:   worker,
+		realmID:  realmID,
+		logger:   logger,
+		requests: userRequests,
 	}, nil
 }
 
 func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, error) {
-	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.worker.Requests[getUserFileName]))
-	result, err := ur.worker.Query(ctx, ur.worker.Requests[getUserFileName], userID, ur.realmID)
+	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.requests[getUserFileName]))
+	result, err := ur.worker.Query(ctx, ur.requests[getUserFileName], userID, ur.realmID)
 
 	if err != nil {
 		ur.logger.ErrorContext(ctx, "Error executing query", slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -78,8 +77,8 @@ func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, err
 }
 
 func (ur *UserRepo) IDByName(ctx context.Context, login string) (model.UserID, error) {
-	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.worker.Requests[getUserByNameFileName]))
-	result, err := ur.worker.Query(ctx, ur.worker.Requests[getUserByNameFileName], login, ur.realmID)
+	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.requests[getUserByNameFileName]))
+	result, err := ur.worker.Query(ctx, ur.requests[getUserByNameFileName], login, ur.realmID)
 
 	if err != nil {
 		ur.logger.ErrorContext(ctx, "Error executing query", slog.String(consts.ErrorLoggerKey, err.Error()))

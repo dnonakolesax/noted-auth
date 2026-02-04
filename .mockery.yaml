@@ -1,0 +1,11 @@
+with-expecter: true
+
+packages:
+  github.com/dnonakolesax/noted-auth/internal/db/sql:
+    interfaces:
+      IPGXWorker:
+        config:
+          dir: mocks
+          outpkg: mocks
+          filename: ipgxworker_mock.go
+          mockname: MockIPGXWorker
