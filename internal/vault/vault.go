@@ -26,19 +26,19 @@ type Credentials struct {
 func SetupVault(addr string, creds *Credentials, logger *slog.Logger) (*Client, error) {
 	vClient, err := vault.New(vault.WithAddress(addr))
 	if err != nil {
-		logger.Error("Coulndt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
+		logger.Error("Couldnt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 	resp, err := vClient.Auth.UserpassLogin(context.Background(), creds.Login, schema.UserpassLoginRequest{
 		Password: creds.Password,
 	})
 	if err != nil {
-		logger.Error("Coulndt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
+		logger.Error("Couldnt create vault client", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 	err = vClient.SetToken(resp.Auth.ClientToken)
 	if err != nil {
-		logger.Error("Coulndt set vault token", slog.String(consts.ErrorLoggerKey, err.Error()))
+		logger.Error("Couldnt set vault token", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
 

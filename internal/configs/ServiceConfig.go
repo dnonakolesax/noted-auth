@@ -23,6 +23,8 @@ const (
 )
 
 const (
+	logDirKey             = "service.log-dir"
+	logDirDefault         = "/var/log/noted-auth"
 	logLevelKey           = "service.log-level"
 	logLevelDefault       = "info"
 	logAddSourceKey       = "service.log-add-source"
@@ -48,6 +50,7 @@ type ServiceConfig struct {
 }
 
 type LoggerConfig struct {
+	LogDir         string
 	LogLevel       string
 	LogTimeout     time.Duration
 	LogAddSource   bool
@@ -77,6 +80,7 @@ func (sc *ServiceConfig) Load(v *viper.Viper) {
 }
 
 func (lc *LoggerConfig) SetDefaults(v *viper.Viper) {
+	v.SetDefault(logDirKey, logDirDefault)
 	v.SetDefault(logLevelKey, logLevelDefault)
 	v.SetDefault(logAddSourceKey, logAddSourceDefault)
 	v.SetDefault(logTimeoutKey, logTimeoutDefault)
@@ -86,6 +90,7 @@ func (lc *LoggerConfig) SetDefaults(v *viper.Viper) {
 }
 
 func (lc *LoggerConfig) Load(v *viper.Viper) {
+	lc.LogDir = v.GetString(logDirKey)
 	lc.LogLevel = v.GetString(logLevelKey)
 	lc.LogAddSource = v.GetBool(logAddSourceKey)
 	lc.LogTimeout = v.GetDuration(logTimeoutKey)

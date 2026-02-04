@@ -116,7 +116,10 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 
 	for attempt := 1; attempt <= hc.retries.MaxAttempts; attempt++ {
 		resp, lastErr = hc.executeRequestAttempt(ctx, method, params)
-		if resp != nil || !hc.shouldRetry(lastErr, resp, attempt) {
+		if resp != nil && lastErr == nil {
+			break
+		}
+		if !hc.shouldRetry(lastErr, resp, attempt) {
 			break
 		}
 
@@ -124,6 +127,10 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 			hc.Alive.Store(false)
 			return nil, err
 		}
+	}
+
+	if resp == nil {
+		return nil, fmt.Errorf("request failed after %d attempts", hc.retries.MaxAttempts)
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {

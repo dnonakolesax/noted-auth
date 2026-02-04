@@ -25,7 +25,7 @@ type Loggers struct {
 
 func NewLogger(cfg *configs.LoggerConfig, layer string) *slog.Logger {
 	logFile := &lumberjack.Logger{
-		Filename:   fmt.Sprintf("/var/log/noted-auth/%s.log", layer),
+		Filename:   fmt.Sprintf("%s/%s.log", cfg.LogDir, layer),
 		MaxSize:    cfg.LogMaxFileSize,
 		MaxBackups: cfg.LogMaxBackups,
 		MaxAge:     cfg.LogMaxAge,

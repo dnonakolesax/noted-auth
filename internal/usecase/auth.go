@@ -187,9 +187,7 @@ func (ac *AuthUsecase) GetToken(ctx context.Context, state string, code string) 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("client_id", ac.kcConfig.ClientID)
-	if ac.kcCSUpdating.Load() {
-		for ac.kcCSUpdating.Load() {
-		}
+	for ac.kcCSUpdating.Load() {
 	}
 	data.Set("client_secret", ac.kcConfig.ClientSecret)
 	data.Set("code", code)
@@ -261,7 +259,11 @@ func (ac *AuthUsecase) isTokenValid(token string) (model.IntrospectDTO, error) {
 	if err != nil {
 		return model.IntrospectDTO{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	var result model.IntrospectDTO
 	err = json.NewDecoder(resp.Body).Decode(&result)
@@ -291,7 +293,11 @@ func (ac *AuthUsecase) refreshTokens(refreshToken string) (model.TokenDTO, error
 	if err != nil {
 		return model.TokenDTO{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	var tokens model.TokenDTO
 	err = json.NewDecoder(resp.Body).Decode(&tokens)

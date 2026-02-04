@@ -47,7 +47,7 @@ func newClient(cfg *configs.RedisConfig, logger *slog.Logger) (*redis.Client, er
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
 	}
-	logger.Info("Redis client ping successfull", slog.String(addressLoggerKey, options.Addr))
+	logger.Info("Redis client ping successful", slog.String(addressLoggerKey, options.Addr))
 	return client, nil
 }
 
