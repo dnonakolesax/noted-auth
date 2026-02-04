@@ -41,14 +41,14 @@ func ListenUpdates(updateChan chan viper.KVEntry, hc *atomic.Bool) *UpdateChans 
 	kcChan := make(chan string)
 
 	go func() {
-		for value := range (updateChan) {
+		for value := range updateChan {
 			switch value.Key {
 			case postgresRolePath:
 				psqlChan <- value.Value
 			case RedisPasswordKey:
 				redisChan <- value.Value
 			case realmClientSecretKey:
-				kcChan <- value.Value			
+				kcChan <- value.Value
 			}
 		}
 		hc.Store(false)
@@ -56,8 +56,8 @@ func ListenUpdates(updateChan chan viper.KVEntry, hc *atomic.Bool) *UpdateChans 
 
 	return &UpdateChans{
 		PSQLCredentials: psqlChan,
-		RedisPassword: redisChan,
-		KCClientSecret: kcChan,
+		RedisPassword:   redisChan,
+		KCClientSecret:  kcChan,
 	}
 }
 
@@ -79,8 +79,8 @@ func SetupConfigs(initLogger *slog.Logger, configsDir string, hc *atomic.Bool) (
 	loggerConfig := &LoggerConfig{}
 
 	vaultConfig := NewVaultConfig()
-	creds := &vault.Credentials {
-		Login: vaultConfig.Login,
+	creds := &vault.Credentials{
+		Login:    vaultConfig.Login,
 		Password: vaultConfig.Password,
 	}
 	vaultClient, err := vault.SetupVault(vaultConfig.Address, creds, initLogger)
@@ -98,21 +98,21 @@ func SetupConfigs(initLogger *slog.Logger, configsDir string, hc *atomic.Bool) (
 	if err != nil {
 		initLogger.ErrorContext(context.Background(), "Error loading config",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
-		hc.Store(false)	
+		hc.Store(false)
 		return nil, err
 	}
 
 	updates := ListenUpdates(vaultClient.UpdateChan, hc)
 
 	return &Config{
-		PSQL:       psqlConfig,
-		Redis:      redisConfig,
-		Keycloak:   kcConfig,
-		HTTPClient: httpClientConfig,
-		HTTPServer: serverConfig,
-		Service:    appConfig,
-		Logger:     loggerConfig,
-		Vault:      vaultConfig,
+		PSQL:        psqlConfig,
+		Redis:       redisConfig,
+		Keycloak:    kcConfig,
+		HTTPClient:  httpClientConfig,
+		HTTPServer:  serverConfig,
+		Service:     appConfig,
+		Logger:      loggerConfig,
+		Vault:       vaultConfig,
 		UpdateChans: updates,
 	}, nil
 }

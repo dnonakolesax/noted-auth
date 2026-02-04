@@ -1,8 +1,8 @@
 package configs
 
 import (
-	"time"
 	"strings"
+	"time"
 
 	"github.com/dnonakolesax/viper"
 )

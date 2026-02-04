@@ -93,11 +93,11 @@ func (ah *Handler) handleToken(ctx *fasthttp.RequestCtx) {
 	sentErr := ctx.QueryArgs().Peek("error")
 
 	if sentErr != nil {
-		ah.logger.ErrorContext(ctx, "Error from keycloak", 
+		ah.logger.ErrorContext(ctx, "Error from keycloak",
 			slog.String("Description", ctx.QueryArgs().String()))
 
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		return	
+		return
 	}
 
 	state := ctx.QueryArgs().Peek("state")
@@ -149,7 +149,7 @@ func (ah *Handler) HandleLogout(ctx *fasthttp.RequestCtx) {
 	if idt == nil {
 		ah.logger.WarnContext(contex, "Id token is empty")
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
-		return 
+		return
 	}
 	cookies.EraseAccessCookies(ctx)
 

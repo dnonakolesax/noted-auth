@@ -68,7 +68,7 @@ func NewWithRetry(endpoint string, config *configs.HTTPClientConfig,
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.RequestTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "HEAD",
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead,
 		endpoint, strings.NewReader(""))
 	if err != nil {
 		return nil, err
@@ -77,6 +77,7 @@ func NewWithRetry(endpoint string, config *configs.HTTPClientConfig,
 	if err != nil {
 		return nil, err
 	}
+	defer r.Body.Close()
 	if r.StatusCode != http.StatusMethodNotAllowed {
 		return nil, errors.New("error heading keycloak: " + r.Status)
 	}
@@ -125,7 +126,7 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 		}
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("resp status code: %d", resp.StatusCode)
 	}
 	return resp, lastErr
@@ -133,9 +134,9 @@ func (hc *HTTPClient) makeRequest(ctx context.Context, method string,
 
 func (hc *HTTPClient) executeRequestAttempt(ctx context.Context, method string,
 	params HTTPRequestParams) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), hc.c.Timeout)
+	contex, cancel := context.WithTimeout(context.TODO(), hc.c.Timeout)
 	defer cancel()
-	req, err := hc.createRequest(ctx, method, params)
+	req, err := hc.createRequest(contex, method, params)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +175,6 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 		fmt.Sprintf("%s%s%s", hc.endpoint, HTTPPathDelimeter, params.pathParam),
 		strings.NewReader(params.body))
 
-	//dump, _ := httputil.DumpRequestOut(req, false)
-	//println(string(dump))
 	if err != nil {
 		hc.logger.ErrorContext(ctx, "Error creating http-request", slog.String(consts.ErrorLoggerKey, err.Error()))
 		return nil, err
@@ -184,7 +183,6 @@ func (hc *HTTPClient) createRequest(ctx context.Context, method string,
 	if method == "GET" || method == "DELETE" {
 		req.Header.Set(HTTPHeaderContentType, "application/json")
 	} else {
-
 		req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeURLEncoded)
 	}
 	if params.token != consts.EmptyString {

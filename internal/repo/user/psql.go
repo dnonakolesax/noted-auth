@@ -20,14 +20,14 @@ const (
 	getUserByNameFileName = "get_user_by_name"
 )
 
-type UserRepo struct {
+type Repo struct {
 	worker   dbsql.IPGXWorker
 	realmID  string
 	logger   *slog.Logger
 	requests map[string]string
 }
 
-func NewUserRepo(worker dbsql.IPGXWorker, realmID string, requestsPath string, logger *slog.Logger) (*UserRepo, error) {
+func NewUserRepo(worker dbsql.IPGXWorker, realmID string, requestsPath string, logger *slog.Logger) (*Repo, error) {
 	userRequests, err := dbsql.LoadSQLRequests(requestsPath + thisDomainName)
 
 	if err != nil {
@@ -35,7 +35,7 @@ func NewUserRepo(worker dbsql.IPGXWorker, realmID string, requestsPath string, l
 		return nil, err
 	}
 
-	return &UserRepo{
+	return &Repo{
 		worker:   worker,
 		realmID:  realmID,
 		logger:   logger,
@@ -43,7 +43,7 @@ func NewUserRepo(worker dbsql.IPGXWorker, realmID string, requestsPath string, l
 	}, nil
 }
 
-func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, error) {
+func (ur *Repo) GetUser(ctx context.Context, userID string) (model.User, error) {
 	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.requests[getUserFileName]))
 	result, err := ur.worker.Query(ctx, ur.requests[getUserFileName], userID, ur.realmID)
 
@@ -76,7 +76,7 @@ func (ur *UserRepo) GetUser(ctx context.Context, userID string) (model.User, err
 	return user, nil
 }
 
-func (ur *UserRepo) IDByName(ctx context.Context, login string) (model.UserID, error) {
+func (ur *Repo) IDByName(ctx context.Context, login string) (model.UserID, error) {
 	ur.logger.InfoContext(ctx, "About to execute query", slog.String("query_name", ur.requests[getUserByNameFileName]))
 	result, err := ur.worker.Query(ctx, ur.requests[getUserByNameFileName], login, ur.realmID)
 

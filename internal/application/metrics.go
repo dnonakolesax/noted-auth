@@ -1,9 +1,10 @@
 package application
 
 import (
-	"github.com/dnonakolesax/noted-auth/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/dnonakolesax/noted-auth/internal/metrics"
 )
 
 type Metrics struct {
@@ -27,9 +28,9 @@ func (a *App) SetupMetrics() {
 	sessionDeleteMetrics := metrics.NewHTTPRequestMetrics(reg, "keycloak_session_delete")
 
 	a.metrics = &Metrics{
-		TokenGetMetrics: tokenRequestMetrics,
-		SessionGetMetrics: sessionGetMetrics,
+		TokenGetMetrics:      tokenRequestMetrics,
+		SessionGetMetrics:    sessionGetMetrics,
 		SessionDeleteMetrics: sessionDeleteMetrics,
-		Reg: reg,
+		Reg:                  reg,
 	}
 }

@@ -32,6 +32,6 @@ const (
 )
 
 const (
-	IdentifierID = "ID"
+	IdentifierID    = "ID"
 	IdentifierLogin = "LOGIN"
 )

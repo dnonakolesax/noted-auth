@@ -3,21 +3,24 @@ package jwt
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
+const partsInJWT = 3
+
 func ExtractSubject(token string) (string, error) {
 	parts := strings.Split(token, ".")
 
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid JWT: not 3 parts")
+	if len(parts) != partsInJWT {
+		return "", errors.New("invalid JWT: not 3 parts")
 	}
 
 	middleDecoded, err := base64.RawURLEncoding.DecodeString(parts[1])
 
 	if err != nil {
-		return "", fmt.Errorf("error base64 decoding jwt body: %v", err)
+		return "", fmt.Errorf("error base64 decoding jwt body: %w", err)
 	}
 
 	type jwtBody struct {
@@ -28,7 +31,7 @@ func ExtractSubject(token string) (string, error) {
 	err = json.Unmarshal(middleDecoded, &body)
 
 	if err != nil {
-		return "", fmt.Errorf("error json unmarshaling jwt body: %v", err)
+		return "", fmt.Errorf("error json unmarshaling jwt body: %w", err)
 	}
 
 	return body.Subject, nil

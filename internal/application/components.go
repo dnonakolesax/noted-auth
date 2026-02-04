@@ -11,14 +11,14 @@ import (
 )
 
 type Components struct {
-	redis    *dbredis.Client
-	pgsql    *dbsql.PGXWorker
-	keycloak *httpclient.HTTPClient
-	keycloak2 *httpclient.HTTPClient
+	redis      *dbredis.Client
+	pgsql      *dbsql.PGXWorker
+	keycloak   *httpclient.HTTPClient
+	keycloak2  *httpclient.HTTPClient
 	keycloak2d *httpclient.HTTPClient
 }
 
-func (a *App) SetupComponents() (error) {
+func (a *App) SetupComponents() error {
 	/************************************************/
 	/*               SQL DB CONNECTION              */
 	/************************************************/
@@ -44,7 +44,8 @@ func (a *App) SetupComponents() (error) {
 	/*              REDIS DB CONNECTION             */
 	/************************************************/
 	a.initLogger.InfoContext(context.Background(), "Starting REDIS DB connection")
-	redisClient, err := dbredis.NewClient(a.configs.Redis, a.health.Redis, a.loggers.Infra, a.configs.UpdateChans.RedisPassword)
+	redisClient, err := dbredis.NewClient(a.configs.Redis, a.health.Redis,
+		a.loggers.Infra, a.configs.UpdateChans.RedisPassword)
 	a.initLogger.InfoContext(context.Background(), "REDIS DB connection established")
 
 	if err != nil {
@@ -65,7 +66,7 @@ func (a *App) SetupComponents() (error) {
 		a.initLogger.ErrorContext(context.Background(), "Error connecting to keycloak",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return err
-	}	
+	}
 
 	a.initLogger.InfoContext(context.Background(), "Created HTTP client, keycloak pinged")
 
@@ -73,14 +74,14 @@ func (a *App) SetupComponents() (error) {
 	/*              HTTP CLIENT SETUP               */
 	/************************************************/
 	a.initLogger.InfoContext(context.Background(), "Creating HTTP client for sessions")
-	httpClient2, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress + "/devices",
+	httpClient2, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress+"/devices",
 		a.configs.HTTPClient, a.metrics.TokenGetMetrics, a.health.Keycloak, a.loggers.HTTPc)
 
 	if err != nil {
 		a.initLogger.ErrorContext(context.Background(), "Error connecting to keycloak",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return err
-	}	
+	}
 
 	httpClient3, err := httpclient.NewWithRetry(a.configs.Keycloak.SessionAddress,
 		a.configs.HTTPClient, a.metrics.TokenGetMetrics, a.health.Keycloak, a.loggers.HTTPc)
@@ -89,14 +90,14 @@ func (a *App) SetupComponents() (error) {
 		a.initLogger.ErrorContext(context.Background(), "Error connecting to keycloak",
 			slog.String(consts.ErrorLoggerKey, err.Error()))
 		return err
-	}	
+	}
 
 	a.initLogger.InfoContext(context.Background(), "Created HTTP client, keycloak pinged")
-	a.components =  &Components{
-		pgsql: psqlWorker,
-		redis: redisClient,
-		keycloak: httpClient,
-		keycloak2: httpClient2,
+	a.components = &Components{
+		pgsql:      psqlWorker,
+		redis:      redisClient,
+		keycloak:   httpClient,
+		keycloak2:  httpClient2,
 		keycloak2d: httpClient3,
 	}
 	return nil

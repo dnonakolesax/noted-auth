@@ -13,17 +13,17 @@ import (
 	"syscall"
 
 	fasthttpprom "github.com/carousell/fasthttp-prometheus-middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/valyala/fasthttp"
+	"google.golang.org/grpc"
+
 	"github.com/dnonakolesax/noted-auth/internal/configs"
 	"github.com/dnonakolesax/noted-auth/internal/consts"
+	authProto "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1/proto"
+	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
 	"github.com/dnonakolesax/noted-auth/internal/logger"
 	"github.com/dnonakolesax/noted-auth/internal/middlewares"
 	"github.com/dnonakolesax/noted-auth/internal/routing"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/valyala/fasthttp"
-
-	userProto "github.com/dnonakolesax/noted-auth/internal/delivery/user/v1/proto"
-	authProto "github.com/dnonakolesax/noted-auth/internal/delivery/auth/v1/proto"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -45,13 +45,13 @@ func NewApp(configsDir string) (*App, error) {
 
 	app.InitHealthchecks()
 
-	configs, err := configs.SetupConfigs(initLogger, configsDir, app.health.Vault)
+	cfgs, err := configs.SetupConfigs(initLogger, configsDir, app.health.Vault)
 
 	if err != nil {
 		return nil, err
 	}
 
-	app.configs = configs
+	app.configs = cfgs
 
 	loggers := logger.SetupLoggers(app.configs.Logger)
 
@@ -74,6 +74,7 @@ func NewApp(configsDir string) (*App, error) {
 	return app, nil
 }
 
+//nolint:funlen // main startup function
 func (a *App) Run() {
 	/************************************************/
 	/*               HTTP ROUTER SETUP              */
@@ -132,7 +133,7 @@ func (a *App) Run() {
 		IdleTimeout:  a.configs.HTTPServer.IdleTimeout,
 
 		MaxRequestBodySize: a.configs.HTTPServer.MaxReqBodySize,
-		ReadBufferSize:     1024*1024,
+		ReadBufferSize:     a.configs.HTTPServer.ReadBufferSize,
 		WriteBufferSize:    a.configs.HTTPServer.WriteBufferSize,
 
 		Concurrency:        a.configs.HTTPServer.Concurrency,

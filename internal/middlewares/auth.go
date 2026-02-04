@@ -4,10 +4,11 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/valyala/fasthttp"
+
 	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/cookies"
 	"github.com/dnonakolesax/noted-auth/internal/model"
-	"github.com/valyala/fasthttp"
 )
 
 type IntrospectUsecase interface {

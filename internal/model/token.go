@@ -14,7 +14,7 @@ type TokenDTO struct { //nolint:recvcheck // autogen issues
 	ReturnURL       string `json:"return_url"`
 }
 
-type TokenGRPCDTO struct {
+type TokenGRPCDTO struct { //nolint:recvcheck // autogen issues
 	AccessToken  string
 	RefreshToken string
 	IDToken      string
@@ -23,7 +23,7 @@ type TokenGRPCDTO struct {
 	UserID       string
 }
 
-type IntrospectDTO struct {
+type IntrospectDTO struct { //nolint:recvcheck // autogen issues
 	Active  bool   `json:"active"`
 	Subject string `json:"sub"`
 }
@@ -37,4 +37,3 @@ func (td *TokenGRPCDTO) ToTokenDTO() TokenDTO {
 		RefreshExp:   td.RefreshExp,
 	}
 }
-

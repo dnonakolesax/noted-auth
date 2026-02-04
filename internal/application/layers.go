@@ -57,8 +57,9 @@ func (a *App) SetupLayers() error {
 	/*                USECASES INIT                 */
 	/************************************************/
 
-	stateUsecase := usecase.NewAuthUsecase(a.configs.Service.AuthTimeout, stateRepos, *a.configs.Keycloak, a.components.keycloak,
-		a.loggers.Service, a.configs.UpdateChans.KCClientSecret)
+	stateUsecase := usecase.NewAuthUsecase(a.configs.Service.AuthTimeout, stateRepos,
+		*a.configs.Keycloak, a.components.keycloak, a.loggers.Service,
+		a.configs.UpdateChans.KCClientSecret)
 	userUsecase := usecase.NewUserUsecase(userRepository, a.loggers.Service)
 	sessionUsecase := usecase.NewSessionUsecase(a.components.keycloak2, a.components.keycloak2d, a.loggers.Service)
 

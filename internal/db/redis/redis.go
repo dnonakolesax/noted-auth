@@ -86,7 +86,7 @@ func (c *Client) MonitorVault(vaultChan chan string) {
 			continue
 		}
 
-		for !c.ConnUpdating.CompareAndSwap(false, true) {
+		for !c.ConnUpdating.CompareAndSwap(false, true) { //nolint:revive // busy wait
 		}
 		c.Client = client
 		c.ConnUpdating.Store(false)

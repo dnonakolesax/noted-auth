@@ -1,9 +1,10 @@
 package cookies
 
 import (
+	"github.com/valyala/fasthttp"
+
 	"github.com/dnonakolesax/noted-auth/internal/consts"
 	"github.com/dnonakolesax/noted-auth/internal/model"
-	"github.com/valyala/fasthttp"
 )
 
 func SetupAccessCookies(ctx *fasthttp.RequestCtx, tokenDTO model.TokenDTO) {

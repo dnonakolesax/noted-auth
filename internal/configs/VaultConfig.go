@@ -15,7 +15,10 @@ func NewVaultConfig() *VaultConfig {
 	login := os.Getenv("VAULT_LOGIN")
 	password := os.Getenv("VAULT_PASSWORD")
 
-	os.Setenv("VAULT_PASSWORD", "there is no spoon, dear hacker")
+	err := os.Setenv("VAULT_PASSWORD", "there is no spoon, dear hacker")
+	if err != nil {
+		panic(err)
+	}
 
 	return &VaultConfig{
 		Address:  address,

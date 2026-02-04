@@ -41,7 +41,7 @@ func NewUserHandler(userUsecase usecase, logger *slog.Logger,
 // @Failure 400
 // @Failure 500
 // @Router /users/{id} [get].
-func (uh *Handler) Get(ctx *fasthttp.RequestCtx) {
+func (uh *Handler) Get(ctx *fasthttp.RequestCtx) { //nolint:dupl // later
 	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	userID := ctx.UserValue("id")
@@ -118,13 +118,13 @@ func (uh *Handler) Self(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
 }
 
-func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) {
+func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) { //nolint:dupl // later
 	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
 	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
 	userName := ctx.UserValue("name")
 
 	if userName == nil {
-		uh.logger.WarnContext(contex, "empty user id")
+		uh.logger.WarnContext(contex, "empty user name")
 		ctx.Response.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
@@ -137,7 +137,7 @@ func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	user, err := uh.userUsecase.GetByUsername(contex, unameString)
+	userID, err := uh.userUsecase.GetByUsername(contex, unameString)
 
 	if err != nil {
 		uh.logger.WarnContext(contex, "could not get user", slog.String(consts.ErrorLoggerKey, err.Error()))
@@ -145,7 +145,7 @@ func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	userJSON, err := user.MarshalJSON()
+	userJSON, err := userID.MarshalJSON()
 
 	if err != nil {
 		uh.logger.ErrorContext(contex, "could not marshal user", slog.String(consts.ErrorLoggerKey, err.Error()))

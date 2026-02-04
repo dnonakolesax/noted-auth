@@ -46,6 +46,7 @@ func setPtr(ptr any, value any) any {
 
 	ev := rv.Elem()
 
+	//nolint:nestif // не класс коррекции, разберётесь
 	if value != nil {
 		vv := reflect.ValueOf(value)
 		if vv.IsValid() {
@@ -60,6 +61,7 @@ func setPtr(ptr any, value any) any {
 		}
 	}
 
+	//nolint:exhaustive // no need to cover all kinds
 	switch ev.Kind() {
 	case reflect.String:
 		ev.SetString("test-value")
@@ -155,7 +157,7 @@ func TestUserRepo_GetUser_QueryError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -177,7 +179,7 @@ func TestUserRepo_GetUser_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -201,7 +203,7 @@ func TestUserRepo_GetUser_ScanError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -230,7 +232,7 @@ func TestUserRepo_GetUser_TooManyRows(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -262,7 +264,7 @@ func TestUserRepo_GetUser_CloseError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -296,7 +298,7 @@ func TestUserRepo_GetUser_OK(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -333,7 +335,7 @@ func TestUserRepo_IDByName_QueryError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -355,7 +357,7 @@ func TestUserRepo_IDByName_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -379,7 +381,7 @@ func TestUserRepo_IDByName_ScanError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -408,7 +410,7 @@ func TestUserRepo_IDByName_TooManyRows(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -438,7 +440,7 @@ func TestUserRepo_IDByName_CloseError(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
@@ -470,7 +472,7 @@ func TestUserRepo_IDByName_OK(t *testing.T) {
 	ctx := context.Background()
 
 	mw := mocks.NewMockIPGXWorker(t)
-	ur := &UserRepo{
+	ur := &Repo{
 		worker:   mw,
 		realmID:  "realm",
 		logger:   testLogger(),
