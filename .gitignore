@@ -30,3 +30,15 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
+
+# Svace results dir
+.svace-dir/
+
+# PVS-Studio results dir
+.pvs-studio/
+
+# Codex results file
+.codex
+
+# Binary dir
+bin/

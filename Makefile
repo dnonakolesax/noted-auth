@@ -7,6 +7,9 @@ run:
 	mkdir -p /var/log/noted-auth
 	go run cmd/api/main.go
 
+build:
+	go build -o bin/noted-auth cmd/api/main.go	
+
 swagger-docs:
 	swag init -g main.go -d cmd/api,internal/delivery/auth/v1,internal/model,internal/delivery/user/v1,internal/delivery/session/v1  
 

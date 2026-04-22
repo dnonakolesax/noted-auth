@@ -35,3 +35,7 @@ const (
 	IdentifierID    = "ID"
 	IdentifierLogin = "LOGIN"
 )
+
+const (
+	UserSearchByPrefixLimit = 5
+)

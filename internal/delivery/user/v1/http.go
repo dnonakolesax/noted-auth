@@ -14,6 +14,7 @@ import (
 type usecase interface {
 	Get(ctx context.Context, uuid string) (model.User, error)
 	GetByUsername(ctx context.Context, username string) (model.UserID, error)
+	SearchByPrefix(ctx context.Context, prefix string) (model.UserSuggestions, error)
 }
 
 type Handler struct {
@@ -158,9 +159,55 @@ func (uh *Handler) GetByName(ctx *fasthttp.RequestCtx) { //nolint:dupl // later
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
 }
 
+// SearchByPrefix godoc
+// @Summary Search users by nickname prefix
+// @Description Returns up to 5 users whose nicknames start with the given prefix
+// @Tags openid-connect
+// @Param prefix query string true "Nickname prefix"
+// @Produces json
+// @Success 200 {object} model.UserSuggestions
+// @Failure 400
+// @Failure 500
+// @Router /users/search [get].
+func (uh *Handler) SearchByPrefix(ctx *fasthttp.RequestCtx) {
+	trace := string(ctx.Request.Header.Peek(consts.HTTPHeaderXRequestID))
+	contex := context.WithValue(context.Background(), consts.TraceContextKey, trace)
+
+	prefix := string(ctx.QueryArgs().Peek("prefix"))
+
+	if prefix == consts.EmptyString {
+		uh.logger.WarnContext(contex, "empty prefix")
+		ctx.Response.SetStatusCode(fasthttp.StatusBadRequest)
+		return
+	}
+
+	users, err := uh.userUsecase.SearchByPrefix(contex, prefix)
+
+	if err != nil {
+		uh.logger.WarnContext(contex, "could not search users by prefix",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
+		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	usersJSON, err := users.MarshalJSON()
+
+	if err != nil {
+		uh.logger.ErrorContext(contex, "could not marshal users",
+			slog.String(consts.ErrorLoggerKey, err.Error()))
+		ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	ctx.Response.SetBody(usersJSON)
+	ctx.Response.Header.Set(fasthttp.HeaderContentType, consts.ApplicationJSONContentType)
+	ctx.Response.SetStatusCode(fasthttp.StatusOK)
+}
+
 func (uh *Handler) RegisterRoutes(apiGroup *router.Group) {
 	group := apiGroup.Group("/users")
-	group.GET("/{id}", uh.mw(uh.Get))
-	group.GET("/name/{name}", uh.mw(uh.GetByName))
+	group.GET("/search", uh.mw(uh.SearchByPrefix))
 	group.GET("/self", uh.mw(uh.Self))
+	group.GET("/name/{name}", uh.mw(uh.GetByName))
+	group.GET("/{id}", uh.mw(uh.Get))
 }

@@ -11,6 +11,7 @@ import (
 type repo interface {
 	GetUser(ctx context.Context, userID string) (model.User, error)
 	IDByName(ctx context.Context, login string) (model.UserID, error)
+	SearchByPrefix(ctx context.Context, prefix string, limit int) ([]model.UserSuggestion, error)
 }
 
 type UserUsecase struct {
@@ -35,6 +36,18 @@ func (uu *UserUsecase) Get(ctx context.Context, userID string) (model.User, erro
 	}
 
 	return user, nil
+}
+
+func (uu *UserUsecase) SearchByPrefix(ctx context.Context, prefix string) (model.UserSuggestions, error) {
+	users, err := uu.userRepo.SearchByPrefix(ctx, prefix, consts.UserSearchByPrefixLimit)
+
+	if err != nil {
+		uu.logger.ErrorContext(ctx, "Error searching users by prefix",
+			slog.String(consts.ErrorLoggerKey, err.Error()), slog.String("PREFIX", prefix))
+		return model.UserSuggestions{}, err
+	}
+
+	return model.UserSuggestions{Items: users}, nil
 }
 
 func (uu *UserUsecase) GetByUsername(ctx context.Context, username string) (model.UserID, error) {
